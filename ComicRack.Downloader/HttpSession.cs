@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -44,11 +45,14 @@ namespace cYo.Projects.ComicRack.Downloader
 
 		public string UserAgent { get; set; } = DefaultUserAgent;
 
+		// Sent by modules (as API_CLIENT) to APIs that ask clients to identify themselves, e.g. MangaDex
+		public const string ClientUserAgent = "ComicRackCE-Downloader/1.0";
+
 		public int Timeout { get; set; } = 30000;
 
 		static HttpSession()
 		{
-			ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12 | (SecurityProtocolType)12288; // TLS 1.3
+			ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
 			ServicePointManager.DefaultConnectionLimit = Math.Max(ServicePointManager.DefaultConnectionLimit, 16);
 			ServicePointManager.Expect100Continue = false;
 		}
@@ -62,6 +66,27 @@ namespace cYo.Projects.ComicRack.Downloader
 		public HttpResult Send(string method, string url, IDictionary<string, string> headers, byte[] body, string contentType, string referer, bool allowRedirect, CancellationToken cancel)
 		{
 			cancel.ThrowIfCancellationRequested();
+			Uri uri = new Uri(url);
+			if (uri.Scheme == Uri.UriSchemeHttps && managedTlsHosts.ContainsKey(uri.Host))
+			{
+				return ManagedTlsHttp.Send(this, method, uri, headers, body, contentType, referer, allowRedirect, cancel);
+			}
+			try
+			{
+				return SendNative(method, url, headers, body, contentType, referer, allowRedirect, cancel);
+			}
+			catch (WebException e) when (e.Status == WebExceptionStatus.SecureChannelFailure && uri.Scheme == Uri.UriSchemeHttps)
+			{
+				// Most likely a TLS 1.3-only server, which Windows 10 can't talk to; remember the host
+				managedTlsHosts[uri.Host] = true;
+				return ManagedTlsHttp.Send(this, method, uri, headers, body, contentType, referer, allowRedirect, cancel);
+			}
+		}
+
+		private static readonly ConcurrentDictionary<string, bool> managedTlsHosts = new ConcurrentDictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+		private HttpResult SendNative(string method, string url, IDictionary<string, string> headers, byte[] body, string contentType, string referer, bool allowRedirect, CancellationToken cancel)
+		{
 			HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
 			req.Method = method;
 			req.CookieContainer = Cookies;

@@ -7,6 +7,8 @@ local _tostring = tostring
 
 -- Modules check this to pick code paths for newer HDoujin versions
 API_VERSION = 20260601
+-- User agent that modules send to APIs requiring clients to identify themselves (MangaDex, Danbooru)
+API_CLIENT = "ComicRackCE-Downloader/1.0"
 
 function tostring(v)
     if v == nil then

@@ -218,7 +218,16 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 			};
 			split.Panel1.Controls.Add(lvJobs);
 			split.Panel2.Controls.Add(txtLog);
-			split.HandleCreated += (s, e) => split.SplitterDistance = Math.Max(100, split.Height * 2 / 3);
+			// The view can be created while hidden or tiny, so only place the splitter once there is room for it
+			bool splitPlaced = false;
+			split.SizeChanged += (s, e) =>
+			{
+				int max = split.Height - split.Panel2MinSize - split.SplitterWidth;
+				if (splitPlaced || max <= split.Panel1MinSize)
+					return;
+				split.SplitterDistance = Math.Max(split.Panel1MinSize, Math.Min(max, Math.Max(100, split.Height * 2 / 3)));
+				splitPlaced = split.Height > 200;
+			};
 
 			Controls.Add(split);
 			Controls.Add(top);
