@@ -162,6 +162,16 @@ namespace cYo.Common.Windows
 		{
 			switch (key)
 			{
+			case CommandKey.Back:
+				return "Backspace";
+			case CommandKey.Oemplus:
+				return "+";
+			case CommandKey.OemMinus:
+				return "-";
+			case CommandKey.Add:
+				return "Num +";
+			case CommandKey.Subtract:
+				return "Num -";
 			case CommandKey.D0:
 				return "0";
 			case CommandKey.D1:

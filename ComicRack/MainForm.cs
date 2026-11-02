@@ -1591,26 +1591,33 @@ namespace cYo.Projects.ComicRack.Viewer
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miPrevPage.Image, "MoveToPreviousPage", group, "Previous Page", (Action)delegate
 			{
 				ComicDisplay.DisplayPreviousPage(ComicDisplay.PagingMode.Double);
-			}, new CommandKey[5]
+			}, new CommandKey[4]
 			{
 				CommandKey.PageUp,
 				CommandKey.Left | CommandKey.Alt,
 				CommandKey.Gesture1,
-				CommandKey.FlickRight,
-				CommandKey.MouseButton4
+				CommandKey.FlickRight
 			}));
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miNextPage.Image, "MoveToNextPage", group, "Next Page", (Action)delegate
 			{
 				ComicDisplay.DisplayNextPage(ComicDisplay.PagingMode.Double);
-			}, new CommandKey[5]
+			}, new CommandKey[4]
 			{
 				CommandKey.PageDown,
 				CommandKey.Right | CommandKey.Alt,
 				CommandKey.Gesture3,
-				CommandKey.FlickLeft,
-				CommandKey.MouseButton5
+				CommandKey.FlickLeft
 			}));
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miLastPage.Image, "MoveToLastPage", group, "Last Page", ComicDisplay.DisplayLastPage, CommandKey.End | CommandKey.Ctrl, CommandKey.GestureDouble3));
+			// Extra page keys (a command holds at most four): Backspace like CDisplay, mouse back/forward like a browser
+			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miPrevPage.Image, "MoveToPreviousPageAlt", group, "Previous Page (more keys)", (Action)delegate
+			{
+				ComicDisplay.DisplayPreviousPage(ComicDisplay.PagingMode.Double);
+			}, CommandKey.Back, CommandKey.MouseButton4));
+			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miNextPage.Image, "MoveToNextPageAlt", group, "Next Page (more keys)", (Action)delegate
+			{
+				ComicDisplay.DisplayNextPage(ComicDisplay.PagingMode.Double);
+			}, CommandKey.MouseButton5));
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miGoToPage.Image, "GoToPage", group, "Go To Page", GoToPage));
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miPrevBookmark.Image, "MoveToPrevBookmark", group, "Previous Bookmark", ComicDisplay.DisplayPreviousBookmarkedPage, CommandKey.PageUp | CommandKey.Ctrl));
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miNextBookmark.Image, "MoveToNextBookmark", group, "Next Bookmark", ComicDisplay.DisplayNextBookmarkedPage, CommandKey.PageDown | CommandKey.Ctrl));
@@ -1633,13 +1640,20 @@ namespace cYo.Projects.ComicRack.Viewer
 			{
 				ComicDisplay.DisplayNextPageOrPart();
 			}, CommandKey.Space, CommandKey.Gesture9));
+			// Like CDisplay: Home/End jump to the start/end of the page, pressed again to the first/last page
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand("MoveFirstPart", group, "Page Start", delegate
 			{
-				ComicDisplay.DisplayPart(PartPageToDisplay.First);
+				if (!ComicDisplay.DisplayPart(PartPageToDisplay.First))
+				{
+					ComicDisplay.DisplayFirstPage();
+				}
 			}, CommandKey.Home));
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand("MoveLastPart", group, "Page End", delegate
 			{
-				ComicDisplay.DisplayPart(PartPageToDisplay.Last);
+				if (!ComicDisplay.DisplayPart(PartPageToDisplay.Last))
+				{
+					ComicDisplay.DisplayLastPage();
+				}
 			}, CommandKey.End));
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand("MovePartDown10", group, "Move Part 10% down", delegate
 			{
@@ -1783,6 +1797,14 @@ namespace cYo.Projects.ComicRack.Viewer
 			{
 				CommandKey.Z | CommandKey.Shift
 			}));
+			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miZoomIn.Image, "KeyZoomIn", group, "Zoom In (Ctrl +)", (Action)delegate
+			{
+				ComicDisplay.ZoomAtCenter(1.5f);
+			}, CommandKey.Oemplus | CommandKey.Ctrl, CommandKey.Add | CommandKey.Ctrl));
+			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miZoomOut.Image, "KeyZoomOut", group, "Zoom Out (Ctrl -)", (Action)delegate
+			{
+				ComicDisplay.ZoomAtCenter(-1.5f);
+			}, CommandKey.OemMinus | CommandKey.Ctrl, CommandKey.Subtract | CommandKey.Ctrl));
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miToggleZoom.Image, "ToggleZoom", group, "Toggle Zoom", ToggleZoom, CommandKey.TouchDoubleTap));
 			group = "Edit";
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand((Image)Resources.Rotate90Permanent, "PageRotateC", group, "Rotate Page Right", (Action)delegate

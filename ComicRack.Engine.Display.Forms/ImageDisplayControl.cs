@@ -2340,6 +2340,16 @@ namespace cYo.Projects.ComicRack.Engine.Display.Forms
 			base.OnMouseUp(e);
 		}
 
+		protected override void OnMouseWheel(MouseEventArgs e)
+		{
+			if (Control.MouseButtons == MouseButtons.Left)
+			{
+				// Left button + wheel changes pages; don't treat the release as a click
+				MouseActionHappened = true;
+			}
+			base.OnMouseWheel(e);
+		}
+
 		protected override void OnMouseClick(MouseEventArgs e)
 		{
 			if (!MouseActionHappened)

@@ -1366,7 +1366,11 @@ namespace cYo.Projects.ComicRack.Engine.Display
 			{
 				if (!AutoScrolling)
 				{
-					MovePart(new Point((int)(lines * (float)(-GetLineSize().Width)), 0));
+					// Like CDisplay: pan while the page is wider than the view, otherwise turn the page
+					if (!MovePart(new Point((int)(lines * (float)(-GetLineSize().Width)), 0)) && PageLayout != PageLayoutMode.Continuous)
+					{
+						TurnPageHorizontally(forward: IsMovementFlipped);
+					}
 				}
 				else if (IsMovementFlipped)
 				{
@@ -1376,6 +1380,19 @@ namespace cYo.Projects.ComicRack.Engine.Display
 				{
 					DisplayPreviousPageOrPart();
 				}
+			}
+		}
+
+		// Walled: holding the key while panning stops at the page edge before turning the page
+		private void TurnPageHorizontally(bool forward)
+		{
+			if (forward)
+			{
+				DisplayNextPage(PagingMode.Double | PagingMode.Walled);
+			}
+			else
+			{
+				DisplayPreviousPage(PagingMode.Double | PagingMode.Walled);
 			}
 		}
 
@@ -1390,7 +1407,10 @@ namespace cYo.Projects.ComicRack.Engine.Display
 			{
 				if (!AutoScrolling)
 				{
-					MovePart(new Point((int)(lines * (float)GetLineSize().Width), 0));
+					if (!MovePart(new Point((int)(lines * (float)GetLineSize().Width), 0)) && PageLayout != PageLayoutMode.Continuous)
+					{
+						TurnPageHorizontally(forward: !IsMovementFlipped);
+					}
 				}
 				else if (IsMovementFlipped)
 				{
@@ -1885,6 +1905,24 @@ namespace cYo.Projects.ComicRack.Engine.Display
 				keyboardMap.HandleKey((e.Delta > 0) ? CommandKey.Tab : (CommandKey.Tab | CommandKey.Shift));
 				SupressContextMenu = true;
 			}
+			else if (Control.MouseButtons == MouseButtons.Left && IsValid)
+			{
+				// CDisplay: hold the left button and roll the wheel to change pages
+				if (e.Delta > 0)
+				{
+					DisplayPreviousPage(PagingMode.Double);
+				}
+				else
+				{
+					DisplayNextPage(PagingMode.Double);
+				}
+			}
+			else if (Control.ModifierKeys == Keys.Shift && !keyboardMap.Commands.Any(c => c.Handles((e.Delta > 0 ? CommandKey.MouseWheelUp : CommandKey.MouseWheelDown) | CommandKey.Shift)))
+			{
+				// Shift + wheel scrolls sideways
+				float notches = (float)e.Delta / (float)SystemInformation.MouseWheelScrollDelta;
+				MovePart(new Point((int)Math.Round(-notches * MouseWheelSpeed * (float)GetLineSize().Width), 0));
+			}
 			else
 			{
 				long ticks = Machine.Ticks;
@@ -1966,12 +2004,23 @@ namespace cYo.Projects.ComicRack.Engine.Display
 		// so touchpad pinch (sent as Ctrl+Wheel) follows the fingers smoothly.
 		public void ZoomAtCursor(float steps)
 		{
+			ZoomBy(steps, Point.Empty);
+		}
+
+		// Keyboard zoom keeps the middle of the view in place
+		public void ZoomAtCenter(float steps)
+		{
+			ZoomBy(steps, control == null ? Point.Empty : new Point(Math.Max(1, control.ClientSize.Width / 2), Math.Max(1, control.ClientSize.Height / 2)));
+		}
+
+		private void ZoomBy(float steps, Point location)
+		{
 			if (IsValid)
 			{
 				float zoom = Math.Max(1f, Math.Min(8f, (float)((double)display.ImageZoom * Math.Pow(1.1, steps))));
 				if (Math.Abs(zoom - display.ImageZoom) > 0.0001f)
 				{
-					display.ZoomTo(Point.Empty, zoom);
+					display.ZoomTo(location, zoom);
 				}
 			}
 		}
