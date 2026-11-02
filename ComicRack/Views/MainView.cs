@@ -63,6 +63,16 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 			AdjustWidth = false
 		};
 
+		private readonly TabBar.TabBarItem tsbDownloads = new TabBar.TabBarItem("Downloads")
+		{
+			Name = "tsbDownloads",
+			Image = Resources.UpdateWeb,
+			Padding = new Padding(0, 0, 8, 0),
+			AdjustWidth = false
+		};
+
+		private DownloaderView downloaderView;
+
 		private readonly CommandMapper commands = new CommandMapper();
 
 		private readonly List<ComicBrowserForm> openBrowsers = new List<ComicBrowserForm>();
@@ -151,16 +161,18 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 		{
 			components = new Container();
 			InitializeComponent();
-			tabStrip.Items.AddRange(new TabBar.TabBarItem[3]
+			tabStrip.Items.AddRange(new TabBar.TabBarItem[4]
 			{
 				tsbLibrary,
 				tsbFolders,
-				tsbPages
+				tsbPages,
+				tsbDownloads
 			});
 			tabStripVisibility = new VisibilityAnimator(components, tabStrip);
 			tsbLibrary.CaptionClick += tab_CaptionClick;
 			tsbFolders.CaptionClick += tab_CaptionClick;
 			tsbPages.CaptionClick += tab_CaptionClick;
+			tsbDownloads.CaptionClick += tab_CaptionClick;
 			LocalizeUtility.Localize(this, components);
 		}
 
@@ -190,6 +202,9 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 				}
 				pagesView = new ComicPagesView();
 				AddView(pagesView, tsbPages);
+				downloaderView = new DownloaderView();
+				AddView(downloaderView, tsbDownloads);
+				downloaderView.Main = base.Main;
 				dbView.ComicBrowser.ItemView.UpdateItems();
 			}
 			finally
@@ -239,6 +254,11 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 		public void ShowPages()
 		{
 			ShowView(tsbPages);
+		}
+
+		public void ShowDownloads()
+		{
+			ShowView(tsbDownloads);
 		}
 
 		public void ShowLast()

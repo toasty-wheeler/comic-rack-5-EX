@@ -177,7 +177,7 @@ namespace cYo.Projects.ComicRack.Downloader
 			{
 				string message = e is ModuleException || e is InterpreterException ? e.Message : e.GetType().Name + ": " + e.Message;
 				job.Error = message;
-				job.WriteLog("Error: " + (e is ModuleException || e is InterpreterException ? message : e.ToString()));
+				job.WriteLog("Error: " + ((e as ModuleException)?.Details ?? (e is ModuleException || e is InterpreterException ? message : e.ToString())));
 				job.StatusText = "Failed: " + FirstLine(message);
 				job.Status = DownloadStatus.Failed;
 			}

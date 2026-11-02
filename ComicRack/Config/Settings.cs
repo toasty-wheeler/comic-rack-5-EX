@@ -424,6 +424,54 @@ namespace cYo.Projects.ComicRack.Viewer.Config
 			set;
 		}
 
+		[Browsable(false)]
+		[DefaultValue(null)]
+		public string DownloaderOutputFolder
+		{
+			get;
+			set;
+		}
+
+		[Browsable(false)]
+		[DefaultValue("Cbz")]
+		public string DownloaderFormat
+		{
+			get;
+			set;
+		} = "Cbz";
+
+		[Browsable(false)]
+		[DefaultValue(true)]
+		public bool DownloaderAddToLibrary
+		{
+			get;
+			set;
+		} = true;
+
+		[Browsable(false)]
+		[DefaultValue(false)]
+		public bool DownloaderOpenWhenDone
+		{
+			get;
+			set;
+		}
+
+		[Browsable(false)]
+		[DefaultValue(true)]
+		public bool DownloaderSelectChapters
+		{
+			get;
+			set;
+		} = true;
+
+		[Browsable(false)]
+		[DefaultValue(false)]
+		public bool DownloaderWatchClipboard
+		{
+			get;
+			set;
+		}
+
 		[DefaultValue(ComicPageType.All)]
 		[Browsable(false)]
 		public ComicPageType PageFilter

@@ -86,12 +86,15 @@ namespace cYo.Projects.ComicRack.Downloader
 			}
 			catch (InterpreterException e)
 			{
-				string message = e.DecoratedMessage ?? e.Message;
+				string details = e.DecoratedMessage ?? e.Message;
 				if (e.CallStack != null && e.CallStack.Count > 0)
 				{
-					message += Environment.NewLine + string.Join(Environment.NewLine, e.CallStack.Select(w => "   at " + (w.Name ?? "?") + " " + (w.Location?.FormatLocation(script) ?? string.Empty)));
+					details += Environment.NewLine + string.Join(Environment.NewLine, e.CallStack.Select(w => "   at " + (w.Name ?? "?") + " " + (w.Location?.FormatLocation(script) ?? string.Empty)));
 				}
-				throw new ModuleException(message, e);
+				throw new ModuleException(e.Message, e)
+				{
+					Details = details
+				};
 			}
 		}
 
@@ -392,5 +395,8 @@ namespace cYo.Projects.ComicRack.Downloader
 			: base(message, inner)
 		{
 		}
+
+		// Script location and Lua call stack, for the job log
+		public string Details { get; set; }
 	}
 }

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <TargetFramework>net48</TargetFramework>
         <PlatformTarget>AnyCPU</PlatformTarget>
@@ -154,6 +154,7 @@
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="..\ComicRack.Engine.Display.Forms\ComicRack.Engine.Display.Forms.csproj" />
+        <ProjectReference Include="..\ComicRack.Downloader\ComicRack.Downloader.csproj" />
         <ProjectReference Include="..\ComicRack.Engine\ComicRack.Engine.csproj" />
         <ProjectReference Include="..\ComicRack.Plugins\ComicRack.Plugins.csproj" />
         <ProjectReference Include="..\cYo.Common.Presentation\cYo.Common.Presentation.csproj" />
