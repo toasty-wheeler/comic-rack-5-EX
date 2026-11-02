@@ -970,6 +970,22 @@ namespace cYo.Projects.ComicRack.Viewer
 			Application.Run(MainForm);
 		}
 
+		// Windows 10/11 "Choose your default app mode": AppsUseLightTheme = 0 means dark
+		public static bool IsWindowsInDarkMode()
+		{
+			try
+			{
+				using (Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))
+				{
+					return key?.GetValue("AppsUseLightTheme") is int value && value == 0;
+				}
+			}
+			catch (Exception)
+			{
+				return false;
+			}
+		}
+
 		private static Themes InitializeTheme()
 		{
 			Themes themeToUse;
@@ -990,6 +1006,11 @@ namespace cYo.Projects.ComicRack.Viewer
 				}
 
 				themeToUse = Settings.Theme;
+			}
+
+			if (themeToUse == Themes.Auto)
+			{
+				themeToUse = IsWindowsInDarkMode() ? Themes.Dark : Themes.Default;
 			}
 
 			ThemeManager.Initialize(themeToUse); // if using dark mode, replace SystemColors and initialize native Windows theming

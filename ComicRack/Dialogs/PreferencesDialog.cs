@@ -153,14 +153,12 @@ namespace cYo.Projects.ComicRack.Viewer.Dialogs
 
 		private void InitializeThemeOptions()
 		{
-			List<ThemeOption> themeOptions = new List<ThemeOption>();
-			foreach (Themes theme in Enum.GetValues(typeof(Themes)))
+			List<ThemeOption> themeOptions = new List<ThemeOption>
 			{
-				string localizedText = LocalizeUtility.LocalizeEnum(typeof(Themes), (int)theme);
-				ThemeOption themeOption = new ThemeOption(localizedText, theme);
-				themeOptions.Add(themeOption);
-				cbTheme.Items.Add(themeOption);
-			}
+				new ThemeOption("Auto (follow Windows: " + (Program.IsWindowsInDarkMode() ? "Dark" : "Light") + ")", Themes.Auto),
+				new ThemeOption("Light", Themes.Default),
+				new ThemeOption("Dark", Themes.Dark)
+			};
 			cbTheme.DataSource = themeOptions;
 			cbTheme.DisplayMember = nameof(ThemeOption.Name);
 			cbTheme.ValueMember = nameof(ThemeOption.Theme);

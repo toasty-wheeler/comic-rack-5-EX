@@ -2416,8 +2416,8 @@ namespace cYo.Projects.ComicRack.Viewer.Config
 
 		public SmartList<DeviceSyncSettings> Devices => devices;
 
-		[DefaultValue(Themes.Default)]
-		public Themes Theme { get; set; } = Themes.Default;
+		[DefaultValue(Themes.Auto)]
+		public Themes Theme { get; set; } = Themes.Auto;
 
 		[DefaultValue(false)]
 		public bool HasMigratedThemes { get; set; } = false;

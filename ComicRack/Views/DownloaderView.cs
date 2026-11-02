@@ -248,6 +248,19 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 			}
 			LoadSettings();
 			this.Theme();
+			if (ThemeManager.IsDarkModeEnabled)
+			{
+				foreach (LinkLabel link in new[] { lnkSites, lnkUpdate })
+				{
+					link.LinkColor = Color.FromArgb(110, 170, 255);
+					link.ActiveLinkColor = Color.FromArgb(160, 200, 255);
+					link.VisitedLinkColor = link.LinkColor;
+					link.DisabledLinkColor = Color.Gray;
+				}
+			}
+			// Status column takes the remaining width, so no empty header strip is left
+			lvJobs.Resize += (s, e) => FillLastColumn();
+			FillLastColumn();
 			Manager.JobAdded += Manager_JobAdded;
 			Manager.JobChanged += Manager_JobChanged;
 			Manager.JobRemoved += Manager_JobRemoved;
@@ -472,6 +485,16 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 				e.Graphics.FillRectangle(fill, new Rectangle(bar.X, bar.Y, (int)(bar.Width * job.Progress), bar.Height));
 			}
 			TextRenderer.DrawText(e.Graphics, $"{job.Progress:P0}", lvJobs.Font, bar, e.Item.Selected ? SystemColors.HighlightText : lvJobs.ForeColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+		}
+
+		private void FillLastColumn()
+		{
+			int others = lvJobs.Columns.Cast<ColumnHeader>().Take(lvJobs.Columns.Count - 1).Sum(c => c.Width);
+			int width = lvJobs.ClientSize.Width - others;
+			if (width > 120)
+			{
+				lvJobs.Columns[lvJobs.Columns.Count - 1].Width = width;
+			}
 		}
 
 		private IEnumerable<DownloadJob> SelectedJobs()
