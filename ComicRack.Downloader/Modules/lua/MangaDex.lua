@@ -307,6 +307,14 @@ function GetInfo()
 
 	if isempty(info.Title) and url:contains("/chapter/") then
 		info.Title = getChapterTitleFromJson(json:SelectNode("data"))
+
+		-- ComicRackCE: prefix the series name so single chapters aren't all called "Oneshot" or "Ch. 3"
+		local seriesTitle = json:SelectValue("data.relationships[?(@.type=='manga')].attributes.title.*")
+
+		if not isempty(seriesTitle) then
+			info.Series = seriesTitle
+			info.Title = seriesTitle .. " -" .. info.Title:gsub("^ ?%-?", " ")
+		end
 	end
 end
 

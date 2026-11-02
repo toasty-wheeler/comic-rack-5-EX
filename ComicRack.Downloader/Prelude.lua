@@ -24,6 +24,11 @@ local function class(def)
     local props = def.props or {}
     local mt = {}
     mt.__index = function(self, k)
+        -- Internal fields: absent on null objects (NullJson, NullNode), and looking them up
+        -- through def.index would recurse forever
+        if k == '_h' or k == '_items' or k == '__iter' then
+            return nil
+        end
         local m = methods[k]
         if m then
             local f = function(...)
