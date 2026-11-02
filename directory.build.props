@@ -11,4 +11,11 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
     </ItemGroup>
+    <!-- Allow building with the 'dotnet build' CLI (MSBuild Core can't embed non-string resources without this) -->
+    <PropertyGroup Condition="'$(MSBuildRuntimeType)' == 'Core'">
+        <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(MSBuildRuntimeType)' == 'Core'">
+        <PackageReference Include="System.Resources.Extensions" Version="8.0.0" />
+    </ItemGroup>
 </Project>
