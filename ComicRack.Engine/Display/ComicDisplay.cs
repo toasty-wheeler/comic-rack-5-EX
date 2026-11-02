@@ -38,6 +38,26 @@ namespace cYo.Projects.ComicRack.Engine.Display
 
 		private float scrollLines = 1f;
 
+		// Precision touchpads send many small wheel deltas per gesture. These track one
+		// "gesture stream" so a swipe/overscroll changes the page once, like a browser.
+		private const int WheelGestureTimeout = 250;
+
+		private float wheelNotches = 1f;
+
+		private long lastWheelTicks;
+
+		private float wheelOverscroll;
+
+		private bool wheelStreamPaged;
+
+		private bool wheelEventActive;
+
+		private long lastHWheelTicks;
+
+		private float hwheelAccumulator;
+
+		private bool hwheelStreamPaged;
+
 		private KeySearch pageKeys;
 
 		private long lastPartNavigation;
@@ -1614,11 +1634,12 @@ namespace cYo.Projects.ComicRack.Engine.Display
 
 		private bool ScrollUp(float lines, bool withPageChange)
 		{
-			if (MovePart(new Point(0, (int)((0f - lines) * (float)GetLineSize().Height))))
+			if (MovePart(new Point(0, (int)Math.Round((0f - lines) * (float)GetLineSize().Height))))
 			{
+				wheelOverscroll = 0f;
 				return true;
 			}
-			if (!withPageChange)
+			if (!withPageChange || !AllowWheelPageChange(lines))
 			{
 				return false;
 			}
@@ -1632,15 +1653,38 @@ namespace cYo.Projects.ComicRack.Engine.Display
 
 		private bool ScrollDown(float lines, bool withPageChange)
 		{
-			if (MovePart(new Point(0, (int)(lines * (float)GetLineSize().Height))))
+			if (MovePart(new Point(0, (int)Math.Round(lines * (float)GetLineSize().Height))))
 			{
+				wheelOverscroll = 0f;
 				return true;
 			}
-			if (!withPageChange)
+			if (!withPageChange || !AllowWheelPageChange(lines))
 			{
 				return false;
 			}
 			DisplayNextPageOrPart(forceNewPage: true);
+			return true;
+		}
+
+		// When scrolling past the edge of a page with the wheel/touchpad, require a bit of
+		// "overscroll" and only one page change per continuous gesture (touchpad inertia).
+		private bool AllowWheelPageChange(float lines)
+		{
+			if (!wheelEventActive)
+			{
+				return true;
+			}
+			if (wheelStreamPaged)
+			{
+				return false;
+			}
+			wheelOverscroll += lines;
+			if (wheelOverscroll < MouseWheelSpeed * 0.9f)
+			{
+				return false;
+			}
+			wheelOverscroll = 0f;
+			wheelStreamPaged = true;
 			return true;
 		}
 
@@ -1812,6 +1856,7 @@ namespace cYo.Projects.ComicRack.Engine.Display
 		private void display_KeyDown(object sender, KeyEventArgs e)
 		{
 			scrollLines = 1f;
+			wheelNotches = 1f;
 			e.Handled = keyboardMap.HandleKey(e.KeyCode | e.Modifiers);
 			if (!e.Handled)
 			{
@@ -1842,14 +1887,93 @@ namespace cYo.Projects.ComicRack.Engine.Display
 			}
 			else
 			{
-				scrollLines = (float)Math.Abs(e.Delta / SystemInformation.MouseWheelScrollDelta) * MouseWheelSpeed;
-				keyboardMap.HandleKey((e.Delta > 0) ? CommandKey.MouseWheelUp : CommandKey.MouseWheelDown, Control.ModifierKeys);
+				long ticks = Machine.Ticks;
+				if (ticks - lastWheelTicks > WheelGestureTimeout)
+				{
+					wheelStreamPaged = false;
+					wheelOverscroll = 0f;
+				}
+				lastWheelTicks = ticks;
+				// Float division: touchpads report fractions of a notch (e.g. 15/120)
+				wheelNotches = (float)Math.Abs(e.Delta) / (float)SystemInformation.MouseWheelScrollDelta;
+				scrollLines = wheelNotches * MouseWheelSpeed;
+				wheelEventActive = e.Delta % SystemInformation.MouseWheelScrollDelta != 0;
+				try
+				{
+					keyboardMap.HandleKey((e.Delta > 0) ? CommandKey.MouseWheelUp : CommandKey.MouseWheelDown, Control.ModifierKeys);
+				}
+				finally
+				{
+					wheelEventActive = false;
+				}
 			}
 		}
 
+		// Horizontal wheel = touchpad two-finger swipe or tilt wheel. Pans if the page is wider
+		// than the view, otherwise acts like browser swipe navigation: one page per swipe.
 		private void display_MouseHWheel(object sender, MouseEventArgs e)
 		{
-			keyboardMap.HandleKey((e.Delta < 0) ? CommandKey.MouseTiltLeft : CommandKey.MouseTiltRight, Control.ModifierKeys);
+			long ticks = Machine.Ticks;
+			if (ticks - lastHWheelTicks > WheelGestureTimeout)
+			{
+				hwheelAccumulator = 0f;
+				hwheelStreamPaged = false;
+			}
+			lastHWheelTicks = ticks;
+			if (!SwipeNavigation || (Control.ModifierKeys != Keys.None))
+			{
+				keyboardMap.HandleKey((e.Delta < 0) ? CommandKey.MouseTiltLeft : CommandKey.MouseTiltRight, Control.ModifierKeys);
+				return;
+			}
+			float notches = (float)e.Delta / (float)SystemInformation.MouseWheelScrollDelta;
+			if (!hwheelStreamPaged && PageLayout != PageLayoutMode.Continuous && MovePart(new Point((int)Math.Round(notches * MouseWheelSpeed * (float)GetLineSize().Width), 0)))
+			{
+				hwheelAccumulator = 0f;
+				return;
+			}
+			if (hwheelStreamPaged || !IsValid)
+			{
+				return;
+			}
+			hwheelAccumulator += notches;
+			if (Math.Abs(hwheelAccumulator) < 1f)
+			{
+				return;
+			}
+			hwheelStreamPaged = true;
+			bool forward = hwheelAccumulator > 0f;
+			hwheelAccumulator = 0f;
+			if (IsMovementFlipped)
+			{
+				forward = !forward;
+			}
+			if (forward)
+			{
+				DisplayNextPage(PagingMode.Double);
+			}
+			else
+			{
+				DisplayPreviousPage(PagingMode.Double);
+			}
+		}
+
+		public bool SwipeNavigation { get; set; } = true;
+
+		// Notches of the last wheel event (fractional for touchpads), 1 for keyboard input
+		public float WheelNotches => wheelNotches;
+
+		// Zooms multiplicatively around the mouse cursor without the blocking zoom animation,
+		// so touchpad pinch (sent as Ctrl+Wheel) follows the fingers smoothly.
+		public void ZoomAtCursor(float steps)
+		{
+			if (IsValid)
+			{
+				float zoom = Math.Max(1f, Math.Min(8f, (float)((double)display.ImageZoom * Math.Pow(1.1, steps))));
+				if (Math.Abs(zoom - display.ImageZoom) > 0.0001f)
+				{
+					display.ZoomTo(Point.Empty, zoom);
+				}
+			}
 		}
 
 		private void display_Browse(object sender, BrowseEventArgs e)

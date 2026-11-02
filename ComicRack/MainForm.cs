@@ -1589,22 +1589,24 @@ namespace cYo.Projects.ComicRack.Viewer
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miPrevPage.Image, "MoveToPreviousPage", group, "Previous Page", (Action)delegate
 			{
 				ComicDisplay.DisplayPreviousPage(ComicDisplay.PagingMode.Double);
-			}, new CommandKey[4]
+			}, new CommandKey[5]
 			{
 				CommandKey.PageUp,
 				CommandKey.Left | CommandKey.Alt,
 				CommandKey.Gesture1,
-				CommandKey.FlickRight
+				CommandKey.FlickRight,
+				CommandKey.MouseButton4
 			}));
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miNextPage.Image, "MoveToNextPage", group, "Next Page", (Action)delegate
 			{
 				ComicDisplay.DisplayNextPage(ComicDisplay.PagingMode.Double);
-			}, new CommandKey[4]
+			}, new CommandKey[5]
 			{
 				CommandKey.PageDown,
 				CommandKey.Right | CommandKey.Alt,
 				CommandKey.Gesture3,
-				CommandKey.FlickLeft
+				CommandKey.FlickLeft,
+				CommandKey.MouseButton5
 			}));
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miLastPage.Image, "MoveToLastPage", group, "Last Page", ComicDisplay.DisplayLastPage, CommandKey.End | CommandKey.Ctrl, CommandKey.GestureDouble3));
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miGoToPage.Image, "GoToPage", group, "Go To Page", GoToPage));
@@ -1752,14 +1754,14 @@ namespace cYo.Projects.ComicRack.Viewer
 			}));
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miZoomIn.Image, "ZoomIn", group, "Zoom In", (Action)delegate
 			{
-				ComicDisplay.ImageZoom = (ComicDisplay.ImageZoom + 0.1f).Clamp(1f, 8f);
+				ComicDisplay.ZoomAtCursor(ComicDisplay.WheelNotches);
 			}, new CommandKey[1]
 			{
 				CommandKey.MouseWheelUp | CommandKey.Ctrl
 			}));
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miZoomOut.Image, "ZoomOut", group, "Zoom Out", (Action)delegate
 			{
-				ComicDisplay.ImageZoom = (ComicDisplay.ImageZoom - 0.1f).Clamp(1f, 8f);
+				ComicDisplay.ZoomAtCursor(-ComicDisplay.WheelNotches);
 			}, new CommandKey[1]
 			{
 				CommandKey.MouseWheelDown | CommandKey.Ctrl

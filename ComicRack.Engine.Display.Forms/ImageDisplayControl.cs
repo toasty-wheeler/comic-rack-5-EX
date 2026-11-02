@@ -1506,7 +1506,7 @@ namespace cYo.Projects.ComicRack.Engine.Display.Forms
 			flowRunner.Tick += FlowTimerTick;
 			components.Add(flowRunner);
 			partScrollRunner.Synchronize = this;
-			partScrollRunner.Interval = 25;
+			partScrollRunner.Interval = 8;
 			partScrollRunner.Tick += PartScrollTimerTick;
 			SetStyle(ControlStyles.AllPaintingInWmPaint, value: true);
 			SetStyle(ControlStyles.UserPaint, value: true);
@@ -1918,17 +1918,16 @@ namespace cYo.Projects.ComicRack.Engine.Display.Forms
 		{
 			long ticks = Machine.Ticks;
 			int num = (int)((scrollLastTime != 0L) ? (ticks - scrollLastTime) : partScrollRunner.Interval);
-			Size imageSize = Display.Config.ImageSize;
-			float num2 = ((imageSize.Width == 0) ? 0f : (Math.Abs(scrollDelta.X) / (float)imageSize.Width));
-			float num3 = ((imageSize.Height == 0) ? 0f : (Math.Abs(scrollDelta.Y) / (float)imageSize.Height));
-			float num4 = num2 * (float)PageScrollingTime;
-			float num5 = num3 * (float)PageScrollingTime;
-			float num6 = ((num4 > 0f) ? (scrollDelta.X * (float)num / num4) : 0f);
-			float num7 = ((num5 > 0f) ? (scrollDelta.Y * (float)num / num5) : 0f);
-			scrollStartOffs.X += num6;
-			scrollStartOffs.Y += num7;
-			scrollStartOffs.X = ((scrollDelta.X < 0f) ? Math.Max(scrollStartOffs.X, scrollEndOffs.X) : Math.Min(scrollStartOffs.X, scrollEndOffs.X));
-			scrollStartOffs.Y = ((scrollDelta.Y < 0f) ? Math.Max(scrollStartOffs.Y, scrollEndOffs.Y) : Math.Min(scrollStartOffs.Y, scrollEndOffs.Y));
+			// Exponential ease-out (like browser smooth scrolling): every frame covers a fixed
+			// fraction of the remaining distance, so repeated wheel input glides instead of stepping.
+			float timeConstant = ((float)PageScrollingTime * 0.08f).Clamp(25f, 140f);
+			float ease = 1f - (float)Math.Exp((float)(-num) / timeConstant);
+			scrollStartOffs.X += (scrollEndOffs.X - scrollStartOffs.X) * ease;
+			scrollStartOffs.Y += (scrollEndOffs.Y - scrollStartOffs.Y) * ease;
+			if (Math.Abs(scrollEndOffs.X - scrollStartOffs.X) < 0.75f && Math.Abs(scrollEndOffs.Y - scrollStartOffs.Y) < 0.75f)
+			{
+				scrollStartOffs = scrollEndOffs;
+			}
 			if (scrollStartOffs == scrollEndOffs)
 			{
 				ImageVisiblePart = scrollPartEnd;
