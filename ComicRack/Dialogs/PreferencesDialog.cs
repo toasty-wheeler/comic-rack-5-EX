@@ -296,7 +296,7 @@ namespace cYo.Projects.ComicRack.Viewer.Dialogs
 			 where !lbPaths.Items.Contains(d)
 			 select d).ForEach(delegate (string d)
 			 {
-				 lbPaths.Items.Add(d);
+				 lbPaths.Items.Add(d, true);
 			 });
 		}
 
@@ -397,7 +397,7 @@ namespace cYo.Projects.ComicRack.Viewer.Dialogs
 			string path = SelectItemDialog.GetName(this, LocalizeUtility.GetText(this, "SelectComicFolder", "Please select a folder containing Books"), string.Empty, BrowseForComicFolder);
 			if (!string.IsNullOrEmpty(path))
 			{
-				lbPaths.Items.Add(path);
+				lbPaths.Items.Add(path, true);
 				if (lbPaths.SelectedIndex == -1)
 				{
 					lbPaths.SelectedIndex = 0;

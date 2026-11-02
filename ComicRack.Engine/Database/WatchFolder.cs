@@ -12,10 +12,14 @@ namespace cYo.Projects.ComicRack.Engine.Database
 	{
 		private string folder;
 
-		private bool watch;
+		private bool watch = true;
 
 		[NonSerialized]
-		private FileSystemWatcher fileSystemWatcher = new FileSystemWatcher();
+		private FileSystemWatcher fileSystemWatcher;
+
+		// Raised (on a thread pool thread) when a file or folder is created in, moved into or
+		// renamed inside any watched library folder
+		public static event EventHandler<FileSystemEventArgs> FileArrived;
 
 		[XmlAttribute]
 		public string Folder
@@ -38,7 +42,8 @@ namespace cYo.Projects.ComicRack.Engine.Database
 			}
 		}
 
-		[DefaultValue(false)]
+		// Watched folders pick up new books automatically (like a music player's library folder)
+		[DefaultValue(true)]
 		[XmlAttribute]
 		public bool Watch
 		{
@@ -56,7 +61,24 @@ namespace cYo.Projects.ComicRack.Engine.Database
 			}
 		}
 
-		public FileSystemWatcher FileSystemWatcher => fileSystemWatcher;
+		public FileSystemWatcher FileSystemWatcher
+		{
+			get
+			{
+				if (fileSystemWatcher == null)
+				{
+					fileSystemWatcher = new FileSystemWatcher
+					{
+						// Copying many books at once can overflow the default 8KB buffer
+						InternalBufferSize = 64 * 1024,
+						NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName
+					};
+					fileSystemWatcher.Created += Watcher_Arrived;
+					fileSystemWatcher.Renamed += Watcher_Arrived;
+				}
+				return fileSystemWatcher;
+			}
+		}
 
 		public WatchFolder()
 		{
@@ -64,8 +86,8 @@ namespace cYo.Projects.ComicRack.Engine.Database
 
 		public WatchFolder(string path, bool watch)
 		{
-			Folder = path;
 			this.watch = watch;
+			Folder = path;
 		}
 
 		[OnDeserialized]
@@ -74,17 +96,23 @@ namespace cYo.Projects.ComicRack.Engine.Database
 			UpdateWatcher();
 		}
 
+		private void Watcher_Arrived(object sender, FileSystemEventArgs e)
+		{
+			FileArrived?.Invoke(this, e);
+		}
+
 		private void UpdateWatcher(bool watch)
 		{
 			try
 			{
-				fileSystemWatcher.EnableRaisingEvents = watch;
-				fileSystemWatcher.IncludeSubdirectories = true;
-				fileSystemWatcher.Path = folder;
+				FileSystemWatcher.EnableRaisingEvents = false;
+				FileSystemWatcher.IncludeSubdirectories = true;
+				FileSystemWatcher.Path = folder;
+				FileSystemWatcher.EnableRaisingEvents = watch;
 			}
 			catch (Exception)
 			{
-				fileSystemWatcher.EnableRaisingEvents = false;
+				FileSystemWatcher.EnableRaisingEvents = false;
 			}
 		}
 
@@ -95,9 +123,11 @@ namespace cYo.Projects.ComicRack.Engine.Database
 
 		protected override void Dispose(bool disposing)
 		{
-			if (disposing)
+			if (disposing && fileSystemWatcher != null)
 			{
 				UpdateWatcher(watch: false);
+				fileSystemWatcher.Created -= Watcher_Arrived;
+				fileSystemWatcher.Renamed -= Watcher_Arrived;
 				fileSystemWatcher.Dispose();
 			}
 			base.Dispose(disposing);

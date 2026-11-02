@@ -342,12 +342,16 @@ namespace cYo.Projects.ComicRack.Engine
 				DefaultProcessingQueueAddMode = ProcessingQueueAddMode.AddToTop
 			};
 			DeviceSyncQueue = new ProcessingQueue<DeviceSyncSettings>("Synchronizing Devices", ThreadPriority.Lowest);
+			folderMonitor = new LibraryFolderMonitor(path => Scanner.ScanFileOrFolder(path, all: true, removeMissing: false));
 		}
+
+		private readonly LibraryFolderMonitor folderMonitor;
 
 		protected override void Dispose(bool disposing)
 		{
 			if (disposing)
 			{
+				folderMonitor.Dispose();
 				if (scanner != null)
 				{
 					Scanner.Dispose();
