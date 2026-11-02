@@ -235,7 +235,7 @@ namespace cYo.Projects.ComicRack.Viewer.Config
 		}
 
 		[Browsable(false)]
-		[DefaultValue(PageTransitionEffect.Flip)]
+		[DefaultValue(PageTransitionEffect.Fade)]
 		public PageTransitionEffect PageTransitionEffect
 		{
 			get;
@@ -408,7 +408,7 @@ namespace cYo.Projects.ComicRack.Viewer.Config
 			PortraitLayout = new BookPageLayout();
 			PageImageBackgroundMode = ImageBackgroundMode.Color;
 			DrawRealisticPages = true;
-			PageTransitionEffect = PageTransitionEffect.Flip;
+			PageTransitionEffect = PageTransitionEffect.Fade;
 			PagesViewConfig = new ItemViewConfig();
 			FileView = new ComicExplorerViewSettings();
 			DatabaseView = new ComicExplorerViewSettings();

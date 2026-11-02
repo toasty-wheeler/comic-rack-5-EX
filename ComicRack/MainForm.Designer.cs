@@ -364,7 +364,6 @@ namespace cYo.Projects.ComicRack.Viewer
 			this.toolStripSeparator7 = new System.Windows.Forms.ToolStripSeparator();
 			this.tbMagnify = new System.Windows.Forms.ToolStripSplitButton();
 			this.tbFullScreen = new System.Windows.Forms.ToolStripButton();
-			this.tbPageAnimation = new System.Windows.Forms.ToolStripButton();
 			this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
 			this.tbTools = new System.Windows.Forms.ToolStripDropDownButton();
 			this.toolsContextMenu = new System.Windows.Forms.ContextMenuStrip(this.components);
@@ -2608,7 +2607,6 @@ namespace cYo.Projects.ComicRack.Viewer
             this.toolStripSeparator7,
             this.tbMagnify,
             this.tbFullScreen,
-            this.tbPageAnimation,
             this.toolStripSeparator1,
             this.tbTools});
 			this.mainToolStrip.LayoutStyle = System.Windows.Forms.ToolStripLayoutStyle.HorizontalStackWithOverflow;
@@ -3100,14 +3098,6 @@ namespace cYo.Projects.ComicRack.Viewer
 			this.tbFullScreen.Size = new System.Drawing.Size(23, 22);
 			this.tbFullScreen.Text = "Full Screen";
 			this.tbFullScreen.ToolTipText = "Full Screen";
-			// 
-			// tbPageAnimation
-			// 
-			this.tbPageAnimation.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-			this.tbPageAnimation.Name = "tbPageAnimation";
-			this.tbPageAnimation.Size = new System.Drawing.Size(23, 22);
-			this.tbPageAnimation.Text = "Page Flip Animation";
-			this.tbPageAnimation.ToolTipText = "Page Flip Animation (on/off)";
 			// 
 			// toolStripSeparator1
 			// 
@@ -3861,7 +3851,6 @@ namespace cYo.Projects.ComicRack.Viewer
 		private ToolStripSeparator toolStripMenuItem10;
 		private QuickOpenView quickOpenView;
 		private ToolStripButton tbFullScreen;
-		private ToolStripButton tbPageAnimation;
 		private ContextMenuStrip contextRating;
 		private ToolStripMenuItem miRate0;
 		private ToolStripSeparator toolStripMenuItem12;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -289,7 +289,7 @@ namespace cYo.Projects.ComicRack.Engine.Display.Forms
 
 		private InfoOverlays visibleInfoOverlays;
 
-		private PageTransitionEffect pageTransitionEffect = PageTransitionEffect.Flip;
+		private PageTransitionEffect pageTransitionEffect = PageTransitionEffect.Fade;
 
 		private bool disableBlending;
 
@@ -776,7 +776,7 @@ namespace cYo.Projects.ComicRack.Engine.Display.Forms
 			}
 		}
 
-		[DefaultValue(PageTransitionEffect.Flip)]
+		[DefaultValue(PageTransitionEffect.Fade)]
 		public PageTransitionEffect PageTransitionEffect
 		{
 			get
@@ -3025,16 +3025,6 @@ namespace cYo.Projects.ComicRack.Engine.Display.Forms
 					Blender = PageBackward;
 				}
 				break;
-			case PageTransitionEffect.Flip:
-				if (flag)
-				{
-					Blender = PageFlipForward;
-				}
-				else
-				{
-					Blender = PageFlipBackward;
-				}
-				break;
 			}
 			ShouldPagingBlend = !base.InvokeRequired && (BlendWhilePaging || Machine.Ticks - lastBlend > 100);
 			OnPageChange(e);
@@ -3226,8 +3216,7 @@ namespace cYo.Projects.ComicRack.Engine.Display.Forms
 					{
 						renderer.EndScene();
 					}
-					bool isFlip = blender.Method.Name == nameof(PageFlipForward) || blender.Method.Name == nameof(PageFlipBackward);
-					ThreadUtility.Animate(isFlip ? EngineConfiguration.Default.PageFlipDuration : EngineConfiguration.Default.BlendDuration, delegate(float x)
+					ThreadUtility.Animate(EngineConfiguration.Default.BlendDuration, delegate(float x)
 					{
 						IBitmapRenderer bitmapRenderer = renderer;
 						try
@@ -3421,176 +3410,6 @@ namespace cYo.Projects.ComicRack.Engine.Display.Forms
 				RenderImageSafe(hr, display);
 			}
 			hr.Clip = Rectangle.Empty;
-		}
-
-		public void PageFlipForward(IBitmapRenderer hr, int oldPage, DisplayOutput oldOut, DisplayOutput display, float percent)
-		{
-			PageFlip(hr, oldPage, oldOut, display, percent, 1);
-		}
-
-		public void PageFlipBackward(IBitmapRenderer hr, int oldPage, DisplayOutput oldOut, DisplayOutput display, float percent)
-		{
-			PageFlip(hr, oldPage, oldOut, display, percent, -1);
-		}
-
-		private const int PageFlipStrips = 40;
-
-		// Simulated 3D page turn. The turning sheet rotates around the spine and is drawn as
-		// vertical strips, each scaled for perspective (the lifted edge comes towards the viewer)
-		// and shaded by its angle to the light. dir = 1 turns right-to-left, -1 left-to-right.
-		private void PageFlip(IBitmapRenderer hr, int oldPage, DisplayOutput oldOut, DisplayOutput display, float percent, int dir)
-		{
-			float t = 0.5f - 0.5f * (float)Math.Cos(percent.Clamp(0f, 1f) * Math.PI);
-			RectangleF oldBounds = oldOut.OutputBoundsScreen;
-			RectangleF newBounds = display.OutputBoundsScreen;
-			RectangleF union = RectangleF.Union(oldBounds, newBounds);
-			bool spread = oldBounds.Width >= oldBounds.Height || newBounds.Width >= newBounds.Height;
-			float spine = spread ? (union.Left + union.Width / 2f) : ((dir > 0) ? union.Left : union.Right);
-			float sheetWidth = spread ? (union.Width / 2f) : union.Width;
-			if (sheetWidth < 2f || union.Height < 2f)
-			{
-				FadeInBlending(hr, oldPage, oldOut, display, percent);
-				return;
-			}
-			Rectangle client = base.ClientRectangle;
-			System.Drawing.Drawing2D.Matrix baseTransform = hr.Transform;
-			float opacity = hr.Opacity;
-			try
-			{
-				// Base: the side the sheet uncovers shows the new page(s), the other side the old one
-				RenderImageBackground(hr, display);
-				RectangleF revealed = (dir > 0) ? RectangleF.FromLTRB(spine, client.Top, client.Right, client.Bottom) : RectangleF.FromLTRB(client.Left, client.Top, spine, client.Bottom);
-				RectangleF staying = (dir > 0) ? RectangleF.FromLTRB(client.Left, client.Top, spine, client.Bottom) : RectangleF.FromLTRB(spine, client.Top, client.Right, client.Bottom);
-				if (revealed.Width > 0f)
-				{
-					hr.Clip = revealed;
-					RenderImageSafe(hr, display, RenderType.WithoutBackground);
-				}
-				if (staying.Width > 0f)
-				{
-					hr.Clip = staying;
-					RenderImageSafe(hr, oldOut, oldPage, RenderType.WithoutBackground);
-				}
-				hr.Clip = Rectangle.Empty;
-
-				double angle = t * Math.PI;
-				float cos = (float)Math.Cos(angle);
-				float sin = (float)Math.Sin(angle);
-				bool frontFace = cos >= 0f;
-				int side = frontFace ? dir : -dir;
-				float projected = Math.Abs(cos) * sheetWidth;
-				float cameraDistance = sheetWidth * 3.5f;
-				float centerY = union.Top + union.Height / 2f;
-
-				// Soft shadow the lifted sheet casts on the pages beneath it
-				float edgeX = spine + side * projected;
-				float shadowWidth = sheetWidth * 0.25f * sin;
-				const int shadowSteps = 10;
-				for (int i = 0; i < shadowSteps && shadowWidth > 1f; i++)
-				{
-					float a = (float)i / shadowSteps;
-					float b = (float)(i + 1) / shadowSteps;
-					float x0 = edgeX + side * shadowWidth * a;
-					float x1 = edgeX + side * shadowWidth * b;
-					hr.Opacity = 0.35f * sin * (1f - a) * (1f - a);
-					hr.FillRectangle(RectangleF.FromLTRB(Math.Min(x0, x1), union.Top, Math.Max(x0, x1), union.Bottom), Color.Black);
-				}
-				hr.Opacity = opacity;
-
-				// Which content the turning sheet shows and where that content lies on screen when flat
-				DisplayOutput faceOut;
-				int facePage;
-				int contentSide;
-				bool paperBack = false;
-				if (frontFace)
-				{
-					faceOut = oldOut;
-					facePage = oldPage;
-					contentSide = dir;
-				}
-				else if (spread)
-				{
-					faceOut = display;
-					facePage = currentPage;
-					contentSide = -dir;
-				}
-				else
-				{
-					// Single page: show the back of the paper (the old page faintly shining through)
-					faceOut = oldOut;
-					facePage = oldPage;
-					contentSide = dir;
-					paperBack = true;
-				}
-				if (projected < 0.5f)
-				{
-					return;
-				}
-				for (int i = 0; i < PageFlipStrips; i++)
-				{
-					float u0 = (float)i / PageFlipStrips;
-					float u1 = (float)(i + 1) / PageFlipStrips;
-					float s0 = cameraDistance / (cameraDistance - u0 * sheetWidth * sin);
-					float s1 = cameraDistance / (cameraDistance - u1 * sheetWidth * sin);
-					float sy = (s0 + s1) / 2f;
-					float cx0 = spine + contentSide * u0 * sheetWidth;
-					float cx1 = spine + contentSide * u1 * sheetWidth;
-					float dx0 = spine + side * u0 * projected * s0;
-					float dx1 = spine + side * u1 * projected * s1;
-					float scaleX = (dx1 - dx0) / (cx1 - cx0);
-					RectangleF strip = RectangleF.FromLTRB(Math.Min(dx0, dx1) - 0.5f, centerY + (union.Top - centerY) * sy, Math.Max(dx0, dx1) + 0.5f, centerY + (union.Bottom - centerY) * sy);
-					hr.Transform = baseTransform;
-					hr.Clip = strip;
-					using (System.Drawing.Drawing2D.Matrix m = baseTransform.Clone())
-					{
-						// screen x -> dx0 + (x - cx0) * scaleX, y scaled around the vertical center
-						using (System.Drawing.Drawing2D.Matrix stripTransform = new System.Drawing.Drawing2D.Matrix(scaleX, 0f, 0f, sy, dx0 - cx0 * scaleX, centerY - centerY * sy))
-						{
-							m.Multiply(stripTransform);
-						}
-						hr.Transform = m;
-					}
-					if (paperBack)
-					{
-						// Nothing lies under a single turned page, so let it fade away as it lands
-						float fade = 1f - Math.Abs(cos);
-						hr.Opacity = opacity * fade * 0.18f;
-						RenderImageSafe(hr, faceOut, facePage, RenderType.WithoutBackground);
-						hr.Transform = baseTransform;
-						hr.Opacity = opacity * fade * 0.9f;
-						hr.FillRectangle(strip, Color.FromArgb(250, 248, 240));
-						hr.Opacity = opacity;
-						continue;
-					}
-					else
-					{
-						RenderImageSafe(hr, faceOut, facePage, RenderType.WithoutBackground);
-						hr.Transform = baseTransform;
-					}
-					// Lighting: the sheet darkens as it turns away from the viewer; slight gradient
-					// towards the spine to suggest the paper bending
-					float shade = (1f - Math.Abs(cos)) * 0.55f + 0.12f * sin * (1f - u0);
-					if (shade > 0.01f)
-					{
-						hr.Opacity = shade.Clamp(0f, 0.85f);
-						hr.FillRectangle(strip, Color.Black);
-					}
-					hr.Opacity = opacity;
-				}
-				// A thin highlight along the lifted edge
-				hr.Clip = Rectangle.Empty;
-				float sEdge = cameraDistance / (cameraDistance - sheetWidth * sin);
-				float xEdge = spine + side * projected * sEdge;
-				hr.Opacity = 0.25f * sin;
-				hr.FillRectangle(RectangleF.FromLTRB(xEdge - 1f, centerY + (union.Top - centerY) * sEdge, xEdge + 1f, centerY + (union.Bottom - centerY) * sEdge), Color.White);
-			}
-			finally
-			{
-				hr.Opacity = opacity;
-				hr.Transform = baseTransform;
-				hr.Clip = Rectangle.Empty;
-				baseTransform.Dispose();
-			}
 		}
 
 		public void ScrollToLeftBlending(IBitmapRenderer hr, int oldPage, DisplayOutput oldOut, DisplayOutput display, float percent)
