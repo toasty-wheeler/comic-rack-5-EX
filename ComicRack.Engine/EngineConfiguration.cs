@@ -91,6 +91,13 @@ namespace cYo.Projects.ComicRack.Engine
 			set;
 		}
 
+		[DefaultValue(550)]
+		public int PageFlipDuration
+		{
+			get;
+			set;
+		}
+
 		[DefaultValue(1000)]
 		public int SoftwareFilterDelay
 		{
@@ -622,6 +629,7 @@ namespace cYo.Projects.ComicRack.Engine
 			PageScrollingDuration = 1000;
 			AnimationDuration = 250;
 			BlendDuration = 400;
+			PageFlipDuration = 550;
 			SoftwareFilterDelay = 1000;
 			ListCoverSize = new Size(512, 512);
 			ListCoverAlpha = 0.3f;

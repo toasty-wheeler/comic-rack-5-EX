@@ -160,7 +160,8 @@ namespace cYo.Projects.ComicRack.Viewer.Dialogs
             "New Page fades in",
             "New Page scrolls in horizontally",
             "New Page scrolls in vertically",
-            "Page Turn Effect"});
+            "Page Turn Effect",
+            "Realistic Page Flip (3D)"});
             this.cbPageTransition.Location = new System.Drawing.Point(103, 26);
             this.cbPageTransition.Name = "cbPageTransition";
             this.cbPageTransition.Size = new System.Drawing.Size(286, 21);

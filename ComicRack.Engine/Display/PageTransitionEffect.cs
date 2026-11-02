@@ -6,6 +6,7 @@ namespace cYo.Projects.ComicRack.Engine.Display
 		Fade,
 		LeftRight,
 		TopDown,
-		Paging
+		Paging,
+		Flip
 	}
 }

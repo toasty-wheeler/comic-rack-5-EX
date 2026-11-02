@@ -1344,6 +1344,8 @@ namespace cYo.Projects.ComicRack.Viewer
 				MinimalGui = !MinimalGui;
 			}, true, () => MinimalGui, miMinimalGui, cmMinimalGui, tbMinimalGui);
 			commands.Add(ComicDisplay.ToggleFullScreen, true, () => ComicDisplay.FullScreen, miFullScreen, tbFullScreen);
+			tbPageAnimation.Image = PageAnimationIcon;
+			commands.Add(TogglePageAnimation, true, () => ComicDisplay.PageTransitionEffect != PageTransitionEffect.None, tbPageAnimation);
 			commands.Add(ComicDisplay.TogglePageLayout, tbPageLayout);
 			commands.Add(delegate
 			{
@@ -1668,6 +1670,7 @@ namespace cYo.Projects.ComicRack.Viewer
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miFullScreen.Image, "ToggleFullScreen", group, "Toggle Full Screen", ComicDisplay.ToggleFullScreen, CommandKey.F, CommandKey.MouseDoubleLeft, CommandKey.Gesture2));
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miTwoPages.Image, "ToggleTwoPages", group, "Toggle Two Pages", ComicDisplay.TogglePageLayout, CommandKey.T));
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand("ToggleRealisticPages", group, "Toggle Realistic Display", ComicDisplay.ToogleRealisticPages, CommandKey.D | CommandKey.Shift));
+			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(PageAnimationIcon, "TogglePageAnimation", group, "Toggle Page Flip Animation", TogglePageAnimation, CommandKey.P | CommandKey.Shift));
 			ComicDisplay.KeyboardMap.Commands.Add(new KeyboardCommand(miMagnify.Image, "ToggleMagnify", group, "Toggle Magnifier", (Action)delegate
 			{
 				ComicDisplay.MagnifierVisible = !ComicDisplay.MagnifierVisible;
@@ -2971,6 +2974,57 @@ namespace cYo.Projects.ComicRack.Viewer
 					{
 					}
 				}
+			}
+		}
+
+		private PageTransitionEffect lastPageAnimation = PageTransitionEffect.Flip;
+
+		private void TogglePageAnimation()
+		{
+			if (ComicDisplay.PageTransitionEffect == PageTransitionEffect.None)
+			{
+				ComicDisplay.PageTransitionEffect = lastPageAnimation;
+			}
+			else
+			{
+				lastPageAnimation = ComicDisplay.PageTransitionEffect;
+				ComicDisplay.PageTransitionEffect = PageTransitionEffect.None;
+			}
+		}
+
+		private static Image pageAnimationIcon;
+
+		// Open book with a page curling over the spine
+		private static Image PageAnimationIcon
+		{
+			get
+			{
+				if (pageAnimationIcon == null)
+				{
+					Bitmap bmp = new Bitmap(32, 32);
+					using (Graphics gr = Graphics.FromImage(bmp))
+					using (Pen outline = new Pen(Color.FromArgb(70, 70, 80), 2f))
+					using (SolidBrush paper = new SolidBrush(Color.FromArgb(245, 245, 240)))
+					using (SolidBrush curl = new SolidBrush(Color.FromArgb(120, 170, 230)))
+					{
+						gr.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+						gr.FillRectangle(paper, 3, 7, 13, 20);
+						gr.DrawRectangle(outline, 3, 7, 13, 20);
+						gr.FillRectangle(paper, 16, 7, 13, 20);
+						gr.DrawRectangle(outline, 16, 7, 13, 20);
+						PointF[] turning = new PointF[]
+						{
+							new PointF(16f, 7f),
+							new PointF(23f, 3f),
+							new PointF(27f, 21f),
+							new PointF(16f, 27f)
+						};
+						gr.FillPolygon(curl, turning);
+						gr.DrawPolygon(outline, turning);
+					}
+					pageAnimationIcon = bmp;
+				}
+				return pageAnimationIcon;
 			}
 		}
 
