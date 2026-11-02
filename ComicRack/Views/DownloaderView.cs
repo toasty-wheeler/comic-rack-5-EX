@@ -70,10 +70,12 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 
 		public static DownloadManager Manager => manager ?? (manager = new DownloadManager(() => new ModuleCatalog(UserModulesFolder, BundledModulesFolder)));
 
+		// The controls are built the first time the tab is shown, so the tab costs nothing at startup
+		private bool initialized;
+
 		public DownloaderView()
 		{
 			Text = "Downloads";
-			BuildLayout();
 		}
 
 		private void BuildLayout()
@@ -248,13 +250,14 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 			};
 		}
 
-		protected override void OnLoad(EventArgs e)
+		private void EnsureInitialized()
 		{
-			base.OnLoad(e);
-			if (DesignMode)
+			if (initialized || DesignMode)
 			{
 				return;
 			}
+			initialized = true;
+			BuildLayout();
 			LoadSettings();
 			this.Theme();
 			if (ThemeManager.IsDarkModeEnabled)
@@ -287,7 +290,10 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 		{
 			if (disposing)
 			{
-				SaveSettings();
+				if (initialized)
+				{
+					SaveSettings();
+				}
 				if (manager != null)
 				{
 					manager.JobAdded -= Manager_JobAdded;
@@ -304,7 +310,11 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 		protected override void OnVisibleChanged(EventArgs e)
 		{
 			base.OnVisibleChanged(e);
-			if (!Visible && !DesignMode)
+			if (Visible)
+			{
+				EnsureInitialized();
+			}
+			else if (initialized)
 			{
 				SaveSettings();
 			}

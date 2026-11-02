@@ -739,6 +739,7 @@ namespace cYo.Projects.ComicRack.Viewer
 		private static void StartNew(string[] args)
 		{
 			Thread.CurrentThread.Name = "GUI Thread";
+			StartJitProfile();
 			Diagnostic.StartWatchDog(CrashDialog.OnBark);
 			ComicBookValueMatcher.RegisterMatcherType(typeof(ComicBookPluginMatcher));
 			ComicBookValueMatcher.RegisterMatcherType(typeof(ComicBookExpressionMatcher));
@@ -803,27 +804,33 @@ namespace cYo.Projects.ComicRack.Viewer
 					InitializeDatabase(0, null);
 				});
 			}
+			// The splash is created on its own thread while startup continues here; it is only
+			// published to StartupProgress/closing once it is visible
+			ManualResetEvent splashShown = null;
 			if (!ExtendedSettings.StartHidden && Settings.ShowSplash)
 			{
-				ManualResetEvent mre = new ManualResetEvent(initialState: false);
+				splashShown = new ManualResetEvent(initialState: false);
 				ThreadUtility.RunInBackground("Splash Thread", delegate
 				{
-					splash = new Splash
+					Splash newSplash = new Splash
 					{
 						Fade = true
 					};
-					splash.Location = splash.Bounds.Align(Screen.FromPoint(Settings.CurrentWorkspace.FormBounds.Location).Bounds, ContentAlignment.MiddleCenter).Location;
-					splash.VisibleChanged += delegate
+					newSplash.Location = newSplash.Bounds.Align(Screen.FromPoint(Settings.CurrentWorkspace.FormBounds.Location).Bounds, ContentAlignment.MiddleCenter).Location;
+					newSplash.VisibleChanged += delegate
 					{
-						mre.Set();
+						if (newSplash.Visible)
+						{
+							splash = newSplash;
+						}
+						splashShown.Set();
 					};
-					splash.Closed += delegate
+					newSplash.Closed += delegate
 					{
 						splash = null;
 					};
-					splash.ShowDialog();
+					newSplash.ShowDialog();
 				});
-				mre.WaitOne(5000, exitContext: false);
 			}
 			try
 			{
@@ -950,9 +957,13 @@ namespace cYo.Projects.ComicRack.Viewer
 			MainForm.Show();
 			MainForm.Update();
 			MainForm.Activate();
-			if (splash != null)
+			// Normally long visible by now; waiting avoids closing a splash that is still being created
+			splashShown?.WaitOne(5000, exitContext: false);
+			Splash shownSplash = splash;
+			if (shownSplash != null)
 			{
-				splash.Invoke(splash.Close);
+				// Don't wait for the 250 ms fade-out; the splash closes on its own thread
+				shownSplash.BeginInvoke((MethodInvoker)shownSplash.Close);
 			}
 			ThreadUtility.RunInBackground("Starting Network", NetworkManager.Start);
 			ThreadUtility.RunInBackground("Generate Language Pack Info", delegate
@@ -1082,6 +1093,23 @@ namespace cYo.Projects.ComicRack.Viewer
             {
                 StartupProgress(readDbMessage, startPercent + percent / 5);
             })));
+		}
+
+		// Multicore JIT: records which methods startup compiles and, on the next launch, compiles
+		// them ahead on background cores. Only the first instance records, so a short-lived second
+		// instance (opening a file into the running app) can't replace the profile with a tiny one.
+		private static void StartJitProfile()
+		{
+			try
+			{
+				string folder = Path.Combine(Paths.ApplicationDataPath, "JitProfile");
+				Directory.CreateDirectory(folder);
+				System.Runtime.ProfileOptimization.SetProfileRoot(folder);
+				System.Runtime.ProfileOptimization.StartProfile("Startup.profile");
+			}
+			catch (Exception)
+			{
+			}
 		}
 
 		private static void MainFormFormClosed(object sender, FormClosedEventArgs e)
