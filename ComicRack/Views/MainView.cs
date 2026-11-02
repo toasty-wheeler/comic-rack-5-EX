@@ -73,6 +73,11 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 
 		private DownloaderView downloaderView;
 
+		private readonly Dictionary<TabBar.TabBarItem, Func<Control>> pendingViews = new Dictionary<TabBar.TabBarItem, Func<Control>>();
+
+		// Last workspace applied, for views that are created after it was set
+		private DisplayWorkspace pendingWorkspace;
+
 		private readonly CommandMapper commands = new CommandMapper();
 
 		private readonly List<ComicBrowserForm> openBrowsers = new List<ComicBrowserForm>();
@@ -188,29 +193,43 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 				base.ParentForm.Resize += ParentForm_Resize;
 			}
 			FormUtility.EnableRightClickSplitButtons(tabToolStrip.Items);
-			SuspendLayout();
-			try
+			// Views are created when their tab is first shown, so startup only builds the selected one
+			pendingViews[tsbLibrary] = delegate
 			{
 				dbView = AddExplorerView(Program.Database, new ComicListLibraryBrowser(Program.Database), tsbLibrary);
-				if (Program.ExtendedSettings.DisableFoldersView)
+				if (pendingWorkspace != null)
 				{
-					tabStrip.Items.Remove(tsbFolders);
+					dbView.ViewSettings = pendingWorkspace.DatabaseView;
 				}
-				else
+				dbView.ComicBrowser.ItemView.UpdateItems();
+				return dbView;
+			};
+			if (Program.ExtendedSettings.DisableFoldersView)
+			{
+				tabStrip.Items.Remove(tsbFolders);
+			}
+			else
+			{
+				pendingViews[tsbFolders] = delegate
 				{
 					fileView = AddExplorerView(null, new ComicListFolderFilesBrowser(Program.Settings.FavoriteFolders), tsbFolders);
-				}
-				pagesView = new ComicPagesView();
-				AddView(pagesView, tsbPages);
-				downloaderView = new DownloaderView();
-				AddView(downloaderView, tsbDownloads);
-				downloaderView.Main = base.Main;
-				dbView.ComicBrowser.ItemView.UpdateItems();
+					if (pendingWorkspace != null)
+					{
+						fileView.ViewSettings = pendingWorkspace.FileView;
+					}
+					return fileView;
+				};
 			}
-			finally
+			pendingViews[tsbPages] = delegate
 			{
-				ResumeLayout();
-			}
+				pagesView = new ComicPagesView();
+				return AddView(pagesView, tsbPages);
+			};
+			pendingViews[tsbDownloads] = delegate
+			{
+				downloaderView = new DownloaderView();
+				return AddView(downloaderView, tsbDownloads);
+			};
 			commands.Add(SwitchDocking, tsbAlignment);
 			commands.Add(delegate
 			{
@@ -351,7 +370,7 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 
 		public IEnumerable<ComicLibrary> GetLibraries(bool includeRemote = true, bool onlyLocalRemote = false)
 		{
-			return from cev in tabStrip.Items.Select((TabBar.TabBarItem tb) => tb.Tag).OfType<ComicExplorerView>()
+			IEnumerable<ComicLibrary> libraries = from cev in tabStrip.Items.Select((TabBar.TabBarItem tb) => tb.Tag).OfType<ComicExplorerView>()
 				select new
 				{
 					Client = (cev.Tag as ComicLibraryClient),
@@ -360,6 +379,12 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 				where cev.Client == null || includeRemote
 				where cev.Client == null || !onlyLocalRemote || cev.Client.ShareInformation.IsLocal
 				select cev.Library;
+			// The local library view may not be created yet, but the library itself always exists
+			if (dbView == null && pendingViews.ContainsKey(tsbLibrary))
+			{
+				libraries = new ComicLibrary[] { Program.Database }.Concat(libraries);
+			}
+			return libraries;
 		}
 
 		public void AddRemoteLibrary(ComicLibraryClient client, AddRemoteLibraryOptions options)
@@ -625,12 +650,35 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 			}
 		}
 
+		private void EnsureView(TabBar.TabBarItem tab)
+		{
+			if (!pendingViews.TryGetValue(tab, out Func<Control> create))
+			{
+				return;
+			}
+			pendingViews.Remove(tab);
+			SuspendLayout();
+			try
+			{
+				Control view = create();
+				if (view is SubView subView && base.Main != null)
+				{
+					subView.Main = base.Main;
+				}
+			}
+			finally
+			{
+				ResumeLayout();
+			}
+		}
+
 		private bool ShowView(TabBar.TabBarItem tabStripButton)
 		{
 			if (!tabStrip.Items.Contains(tabStripButton))
 			{
 				return false;
 			}
+			EnsureView(tabStripButton);
 			SuspendLayout();
 			try
 			{
@@ -730,7 +778,11 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 			try
 			{
 				workspace.DatabaseView.ItemViewConfig = null;
-				dbView.ViewSettings = workspace.DatabaseView;
+				pendingWorkspace = workspace;
+				if (dbView != null)
+				{
+					dbView.ViewSettings = workspace.DatabaseView;
+				}
 				if (fileView != null)
 				{
 					fileView.ViewSettings = workspace.FileView;
@@ -744,12 +796,24 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 
 		public void StoreWorkspace(DisplayWorkspace ws)
 		{
-			if (ws != null && ws.DatabaseView != null && dbView != null)
+			if (ws != null && ws.DatabaseView != null)
 			{
-				ws.DatabaseView = dbView.ViewSettings;
+				// Views never opened this session keep the settings they were given
+				if (dbView != null)
+				{
+					ws.DatabaseView = dbView.ViewSettings;
+				}
+				else if (pendingWorkspace?.DatabaseView != null)
+				{
+					ws.DatabaseView = pendingWorkspace.DatabaseView;
+				}
 				if (fileView != null)
 				{
 					ws.FileView = fileView.ViewSettings;
+				}
+				else if (pendingWorkspace?.FileView != null)
+				{
+					ws.FileView = pendingWorkspace.FileView;
 				}
 				ws.DatabaseView.ItemViewConfig = null;
 				if (tabStrip != null && tabStrip.SelectedTab != null)
