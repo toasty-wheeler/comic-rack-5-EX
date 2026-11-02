@@ -1693,6 +1693,7 @@ namespace cYo.Common.Windows.Forms
 		{
 			if (disposing)
 			{
+				smoothScrollTimer?.Dispose();
 				try
 				{
 					items.Clear();
@@ -4289,7 +4290,79 @@ namespace cYo.Common.Windows.Forms
 			if (Control.ModifierKeys == Keys.None)
 			{
 				float num = (float)(-e.Delta) / (float)SystemInformation.MouseWheelScrollDelta;
-				ScrollView(num * (float)SystemInformation.MouseWheelScrollLines);
+				SmoothScrollView(num * (float)SystemInformation.MouseWheelScrollLines);
+			}
+		}
+
+		private Timer smoothScrollTimer;
+
+		private PointF smoothScrollCurrent;
+
+		private PointF smoothScrollTarget;
+
+		private Point smoothScrollLastSet;
+
+		private long smoothScrollLastTicks;
+
+		// Wheel scrolling glides to the target with an exponential ease-out (browser style)
+		// instead of jumping whole lines. Further wheel input extends the running animation.
+		public void SmoothScrollView(float linesOrColumns)
+		{
+			bool running = smoothScrollTimer != null && smoothScrollTimer.Enabled && base.ScrollPosition == smoothScrollLastSet;
+			if (!running)
+			{
+				smoothScrollCurrent = smoothScrollTarget = base.ScrollPosition;
+			}
+			if (IsTopLayout)
+			{
+				smoothScrollTarget.Y += (float)LineHeight * linesOrColumns;
+			}
+			else
+			{
+				smoothScrollTarget.X += (float)ColumnWidth * linesOrColumns;
+			}
+			if (smoothScrollTimer == null)
+			{
+				smoothScrollTimer = new Timer
+				{
+					Interval = 10
+				};
+				smoothScrollTimer.Tick += SmoothScrollTimerTick;
+			}
+			if (!running)
+			{
+				smoothScrollLastTicks = Environment.TickCount;
+				smoothScrollLastSet = base.ScrollPosition;
+				smoothScrollTimer.Start();
+			}
+		}
+
+		private void SmoothScrollTimerTick(object sender, EventArgs e)
+		{
+			if (base.ScrollPosition != smoothScrollLastSet || base.IsDisposed)
+			{
+				// Scrolled by something else (scrollbar, keyboard): give up the animation
+				smoothScrollTimer.Stop();
+				return;
+			}
+			long ticks = Environment.TickCount;
+			float dt = Math.Max(1L, ticks - smoothScrollLastTicks);
+			smoothScrollLastTicks = ticks;
+			float ease = 1f - (float)Math.Exp(-dt / 70f);
+			smoothScrollCurrent.X += (smoothScrollTarget.X - smoothScrollCurrent.X) * ease;
+			smoothScrollCurrent.Y += (smoothScrollTarget.Y - smoothScrollCurrent.Y) * ease;
+			bool done = Math.Abs(smoothScrollTarget.X - smoothScrollCurrent.X) < 0.5f && Math.Abs(smoothScrollTarget.Y - smoothScrollCurrent.Y) < 0.5f;
+			if (done)
+			{
+				smoothScrollCurrent = smoothScrollTarget;
+			}
+			Point requested = new Point((int)Math.Round(smoothScrollCurrent.X), (int)Math.Round(smoothScrollCurrent.Y));
+			base.ScrollPosition = requested;
+			smoothScrollLastSet = base.ScrollPosition;
+			if (done || smoothScrollLastSet != requested)
+			{
+				// Finished, or clamped at the start/end of the list
+				smoothScrollTimer.Stop();
 			}
 		}
 

@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <OutputType>Library</OutputType>
+    <RootNamespace>cYo.Projects.ComicRack.Downloader</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Deterministic>false</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Web" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Prelude.lua" LogicalName="Prelude.lua" />
+    <!-- HDoujin Downloader site modules (MIT), shipped next to the executable -->
+    <None Include="Modules\**\*" Link="DownloaderModules\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MoonSharp" Version="2.0.0" />
+    <PackageReference Include="HtmlAgilityPack" Version="1.11.71" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Jint" Version="3.1.6" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ComicRack.Engine\ComicRack.Engine.csproj" />
+    <ProjectReference Include="..\cYo.Common\cYo.Common.csproj" />
+  </ItemGroup>
+</Project>
