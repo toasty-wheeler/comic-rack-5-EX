@@ -130,6 +130,13 @@ namespace cYo.Projects.ComicRack.Downloader
 			Call("__begin", url);
 		}
 
+		// Supplies the HTML for a URL (e.g. the page as the browser rendered it) so the module
+		// parses that instead of downloading the page itself
+		public void SeedDocument(string url, string html)
+		{
+			documentCache[url] = html;
+		}
+
 		#region Host functions
 
 		private Table CreateHost()

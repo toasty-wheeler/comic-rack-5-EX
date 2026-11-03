@@ -337,7 +337,7 @@ namespace cYo.Projects.ComicRack.Downloader
 			return header.EndsWith(";base64", StringComparison.OrdinalIgnoreCase) ? Convert.FromBase64String(payload) : System.Text.Encoding.UTF8.GetBytes(Uri.UnescapeDataString(payload));
 		}
 
-		private static GalleryInfo ExportInfo(ModuleScript script)
+		internal static GalleryInfo ExportInfo(ModuleScript script)
 		{
 			GalleryInfo info = new GalleryInfo();
 			foreach (TablePair p in script.Call("__export_info").Table.Pairs)
@@ -347,7 +347,7 @@ namespace cYo.Projects.ComicRack.Downloader
 			return info;
 		}
 
-		private static List<ChapterEntry> ExportChapters(ModuleScript script)
+		internal static List<ChapterEntry> ExportChapters(ModuleScript script)
 		{
 			return script.Call("__export_chapters").Table.Values.Select(v => new ChapterEntry
 			{
@@ -359,7 +359,7 @@ namespace cYo.Projects.ComicRack.Downloader
 			}).Where(c => !string.IsNullOrWhiteSpace(c.Url)).ToList();
 		}
 
-		private static PageRequest ExportPage(Table t, int index, string pageUrl)
+		internal static PageRequest ExportPage(Table t, int index, string pageUrl)
 		{
 			PageRequest r = new PageRequest
 			{
@@ -376,7 +376,7 @@ namespace cYo.Projects.ComicRack.Downloader
 			return r;
 		}
 
-		private static string DefaultSetting(string name)
+		internal static string DefaultSetting(string name)
 		{
 			switch (name)
 			{

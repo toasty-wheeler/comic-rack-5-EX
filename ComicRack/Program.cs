@@ -966,6 +966,7 @@ namespace cYo.Projects.ComicRack.Viewer
 				shownSplash.BeginInvoke((MethodInvoker)shownSplash.Close);
 			}
 			ThreadUtility.RunInBackground("Starting Network", NetworkManager.Start);
+			ThreadUtility.RunInBackground("Browser Bridge", Views.DownloaderView.StartBrowserBridge);
 			ThreadUtility.RunInBackground("Generate Language Pack Info", delegate
 			{
 				int num = InstalledLanguages.Length;

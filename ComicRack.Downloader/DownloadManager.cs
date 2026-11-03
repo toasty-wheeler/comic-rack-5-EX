@@ -87,6 +87,37 @@ namespace cYo.Projects.ComicRack.Downloader
 			return job;
 		}
 
+		// A job whose pages are supplied from outside (the browser extension) instead of a worker;
+		// it is listed like any other job but never picked up by the workers while running
+		public DownloadJob AddExternal(string url, DownloadOptions options)
+		{
+			DownloadJob job = new DownloadJob(url, options.Clone());
+			job.Changed += Job_Changed;
+			job.Status = DownloadStatus.Running;
+			lock (sync)
+			{
+				jobs.Add(job);
+			}
+			JobAdded?.Invoke(this, job);
+			return job;
+		}
+
+		// Hands an external job to the workers (e.g. a series page the browser can't download in one go)
+		public void QueueExternal(DownloadJob job)
+		{
+			job.Reset();
+			lock (sync)
+			{
+				EnsureWorkers();
+			}
+			workAvailable.Set();
+		}
+
+		public void CompleteExternal(DownloadJob job)
+		{
+			JobCompleted?.Invoke(this, job);
+		}
+
 		public void Retry(DownloadJob job)
 		{
 			if (job.IsFinished)

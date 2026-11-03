@@ -43,6 +43,8 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 
 		private readonly LinkLabel lnkUpdate = new LinkLabel();
 
+		private readonly LinkLabel lnkExtension = new LinkLabel();
+
 		private readonly ListView lvJobs = new ListView();
 
 		private readonly TextBox txtLog = new TextBox();
@@ -68,7 +70,58 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 
 		public static string BundledModulesFolder => Path.Combine(Application.StartupPath, "DownloaderModules");
 
-		public static DownloadManager Manager => manager ?? (manager = new DownloadManager(() => new ModuleCatalog(UserModulesFolder, BundledModulesFolder)));
+		public static string BrowserExtensionFolder => Path.Combine(Application.StartupPath, "BrowserExtension");
+
+		private static BrowserBridge browserBridge;
+
+		public static DownloadManager Manager
+		{
+			get
+			{
+				if (manager == null)
+				{
+					manager = new DownloadManager(() => new ModuleCatalog(UserModulesFolder, BundledModulesFolder));
+					// Handled here rather than by the view, which may never be opened (browser downloads)
+					manager.JobCompleted += Manager_JobCompleted;
+				}
+				return manager;
+			}
+		}
+
+		public static string DefaultOutputFolder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Comics", "Downloads");
+
+		// Download options as last chosen on the Downloads tab
+		public static DownloadOptions OptionsFromSettings()
+		{
+			string folder = Program.Settings.DownloaderOutputFolder;
+			return new DownloadOptions
+			{
+				OutputFolder = string.IsNullOrEmpty(folder) ? DefaultOutputFolder : folder,
+				Format = Enum.TryParse(Program.Settings.DownloaderFormat, true, out OutputFormat f) ? f : OutputFormat.Cbz
+			};
+		}
+
+		// Lets the ComicRack browser extension send pages to ComicRack (127.0.0.1 only)
+		public static void StartBrowserBridge()
+		{
+			if (browserBridge != null)
+			{
+				return;
+			}
+			try
+			{
+				BrowserBridge bridge = new BrowserBridge(Manager, OptionsFromSettings)
+				{
+					AppVersion = Application.ProductVersion
+				};
+				bridge.Start();
+				browserBridge = bridge;
+			}
+			catch (Exception)
+			{
+				// Port in use (e.g. a second copy of ComicRack); the extension shows ComicRack as not running
+			}
+		}
 
 		// The controls are built the first time the tab is shown, so the tab costs nothing at startup
 		private bool initialized;
@@ -161,8 +214,13 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 			lnkUpdate.AutoSize = true;
 			lnkUpdate.Margin = new Padding(6, 5, 6, 3);
 			lnkUpdate.LinkClicked += (s, e) => UpdateModules();
+			lnkExtension.Text = "Browser extension…";
+			lnkExtension.AutoSize = true;
+			lnkExtension.Margin = new Padding(6, 5, 6, 3);
+			lnkExtension.LinkClicked += (s, e) => ShowBrowserExtensionHelp();
 			options.Controls.Add(lnkSites);
 			options.Controls.Add(lnkUpdate);
+			options.Controls.Add(lnkExtension);
 			top.Controls.Add(options, 0, 2);
 			top.SetColumnSpan(options, 5);
 
@@ -262,7 +320,7 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 			this.Theme();
 			if (ThemeManager.IsDarkModeEnabled)
 			{
-				foreach (LinkLabel link in new[] { lnkSites, lnkUpdate })
+				foreach (LinkLabel link in new[] { lnkSites, lnkUpdate, lnkExtension })
 				{
 					link.LinkColor = Color.FromArgb(110, 170, 255);
 					link.ActiveLinkColor = Color.FromArgb(160, 200, 255);
@@ -276,7 +334,6 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 			Manager.JobAdded += Manager_JobAdded;
 			Manager.JobChanged += Manager_JobChanged;
 			Manager.JobRemoved += Manager_JobRemoved;
-			Manager.JobCompleted += Manager_JobCompleted;
 			Manager.SelectChapters = SelectChapters;
 			foreach (DownloadJob job in Manager.Jobs)
 			{
@@ -299,7 +356,6 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 					manager.JobAdded -= Manager_JobAdded;
 					manager.JobChanged -= Manager_JobChanged;
 					manager.JobRemoved -= Manager_JobRemoved;
-					manager.JobCompleted -= Manager_JobCompleted;
 				}
 				clipboardTimer.Dispose();
 				logTimer.Dispose();
@@ -323,17 +379,20 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 		private void LoadSettings()
 		{
 			string folder = Program.Settings.DownloaderOutputFolder;
-			if (string.IsNullOrEmpty(folder))
-			{
-				folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Comics", "Downloads");
-			}
-			txtFolder.Text = folder;
+			txtFolder.Text = string.IsNullOrEmpty(folder) ? DefaultOutputFolder : folder;
 			OutputFormat format = Enum.TryParse(Program.Settings.DownloaderFormat, true, out OutputFormat f) ? f : OutputFormat.Cbz;
 			cbFormat.SelectedIndex = Math.Max(0, Array.FindIndex(formats, x => x.Format == format));
 			chkAddToLibrary.Checked = Program.Settings.DownloaderAddToLibrary;
 			chkOpen.Checked = Program.Settings.DownloaderOpenWhenDone;
 			chkChapters.Checked = Program.Settings.DownloaderSelectChapters;
 			chkClipboard.Checked = Program.Settings.DownloaderWatchClipboard;
+			// Browser downloads finish without this tab, so the choices are saved right away
+			foreach (CheckBox cb in new[] { chkAddToLibrary, chkOpen, chkChapters, chkClipboard })
+			{
+				cb.CheckedChanged += (s, e) => SaveSettings();
+			}
+			cbFormat.SelectedIndexChanged += (s, e) => SaveSettings();
+			txtFolder.Leave += (s, e) => SaveSettings();
 		}
 
 		private void SaveSettings()
@@ -414,31 +473,38 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 			});
 		}
 
-		private void Manager_JobCompleted(object sender, DownloadJob job)
+		private static void Manager_JobCompleted(object sender, DownloadJob job)
 		{
-			if (job.Status != DownloadStatus.Completed)
+			MainForm mainForm = Program.MainForm;
+			if (job.Status != DownloadStatus.Completed || mainForm == null || mainForm.IsDisposed)
 			{
 				return;
 			}
-			BeginInvokeSafe(() =>
+			try
 			{
-				string[] files = job.OutputFiles;
-				if (files.Length == 0)
+				mainForm.BeginInvoke(new Action(() =>
 				{
-					return;
-				}
-				if (chkAddToLibrary.Checked && job.Options.Format != OutputFormat.Folder)
-				{
-					foreach (string file in files)
+					string[] files = job.OutputFiles;
+					if (files.Length == 0 || job.Options.Format == OutputFormat.Folder)
 					{
-						Program.Scanner.ScanFileOrFolder(file, all: true, removeMissing: false);
+						return;
 					}
-				}
-				if (chkOpen.Checked && job.Options.Format != OutputFormat.Folder)
-				{
-					(Main?.OpenBooks ?? Program.MainForm?.OpenBooks)?.Open(files[0], inNewSlot: true);
-				}
-			});
+					if (Program.Settings.DownloaderAddToLibrary)
+					{
+						foreach (string file in files)
+						{
+							Program.Scanner.ScanFileOrFolder(file, all: true, removeMissing: false);
+						}
+					}
+					if (Program.Settings.DownloaderOpenWhenDone)
+					{
+						mainForm.OpenBooks?.Open(files[0], inNewSlot: true);
+					}
+				}));
+			}
+			catch (InvalidOperationException)
+			{
+			}
 		}
 
 		private void AddItem(DownloadJob job)
@@ -620,6 +686,22 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 					MessageBox.Show(this, t.Result, "Downloads", MessageBoxButtons.OK, MessageBoxIcon.Information);
 				}
 			}));
+		}
+
+		private void ShowBrowserExtensionHelp()
+		{
+			string text = "The ComicRack browser extension downloads the comic on the page you're viewing, "
+				+ "in your browser, and sends it here to be packed and added to your library.\n\n"
+				+ "To install it in Chrome, Edge, Brave, Opera or Vivaldi:\n"
+				+ "1. Open the extensions page (chrome://extensions or edge://extensions)\n"
+				+ "2. Turn on \"Developer mode\"\n"
+				+ "3. Click \"Load unpacked\" and select the folder that opens next\n\n"
+				+ "The toolbar icon turns green on pages ComicRack has a site module for. "
+				+ "Downloads use the format and folder chosen on this tab.\n\nOpen the extension folder now?";
+			if (MessageBox.Show(this, text, "Browser extension", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.OK && Directory.Exists(BrowserExtensionFolder))
+			{
+				Process.Start("explorer.exe", "\"" + BrowserExtensionFolder + "\"");
+			}
 		}
 
 		private static string SafeClipboardText()

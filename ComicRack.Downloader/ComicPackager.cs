@@ -92,6 +92,16 @@ namespace cYo.Projects.ComicRack.Downloader
 				folder = Path.Combine(folder, title);
 				name = SafeFileName(title + " - " + FirstNonEmpty(chapter.Title, "Chapter " + chapter.Chapter));
 			}
+			else if (!string.IsNullOrWhiteSpace(info["Series"]))
+			{
+				// A single chapter of a known series goes where the series' other chapters go
+				string series = SafeFileName(info["Series"]);
+				folder = Path.Combine(folder, series);
+				if (!title.StartsWith(series, StringComparison.OrdinalIgnoreCase))
+				{
+					name = SafeFileName(series + " - " + title);
+				}
+			}
 			Directory.CreateDirectory(folder);
 			string target = UniquePath(Path.Combine(folder, name), extensions[options.Format]);
 
@@ -268,6 +278,17 @@ namespace cYo.Projects.ComicRack.Downloader
 				}
 				ci.Number = number;
 				if (int.TryParse(Regex.Match(chapter.Volume ?? string.Empty, @"\d+").Value, out int volume))
+				{
+					ci.Volume = volume;
+				}
+			}
+			else if (!string.IsNullOrEmpty(info["Series"]))
+			{
+				// A single chapter of a series (e.g. sent from the browser): only explicit labels count,
+				// so gallery titles that merely contain numbers aren't misread
+				ci.Number = FirstNonEmpty(info["Chapter"], Regex.Match(title, @"(?i)(?:\bch(?:apter|\.)?|\bepisode|\bep\.?|#)\s*(\d+(?:\.\d+)?)").Groups[1].Value);
+				string volumeText = FirstNonEmpty(info["Volume"], Regex.Match(title, @"(?i)(?:\bvol(?:ume|\.)?|\bseason)\s*(\d+)").Groups[1].Value);
+				if (int.TryParse(Regex.Match(volumeText, @"\d+").Value, out int volume))
 				{
 					ci.Volume = volume;
 				}
