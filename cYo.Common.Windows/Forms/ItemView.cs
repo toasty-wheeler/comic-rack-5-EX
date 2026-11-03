@@ -192,6 +192,23 @@ namespace cYo.Common.Windows.Forms
 				}
 			}
 
+			// Only items with a state are stored, so this is cheap even for huge lists
+			public HashSet<IViewableItem> FindAll(ItemViewStates mask)
+			{
+				using (ItemMonitor.Lock(stateDict))
+				{
+					HashSet<IViewableItem> result = new HashSet<IViewableItem>();
+					foreach (KeyValuePair<IViewableItem, ItemViewStates> entry in stateDict)
+					{
+						if ((entry.Value & mask) != 0)
+						{
+							result.Add(entry.Key);
+						}
+					}
+					return result;
+				}
+			}
+
 			public IViewableItem FindFirst(ItemViewStates mask)
 			{
 				using (ItemMonitor.Lock(stateDict))
@@ -1606,6 +1623,10 @@ namespace cYo.Common.Windows.Forms
 
 		[Browsable(false)]
 		public MouseButtons ActivateButton => activateButton;
+
+		// A single middle click activates the item under the cursor (like opening a link in a new tab)
+		[DefaultValue(false)]
+		public bool MiddleClickActivates { get; set; }
 
 		protected bool InUpdateBlock => updateBlockCount > 0;
 
@@ -3298,6 +3319,7 @@ namespace cYo.Common.Windows.Forms
 									DisplayType = ItemViewMode
 								};
 								IColumn expandedColumn = GetExpandedColumn();
+								HashSet<IViewableItem> selected = itemStates.FindAll(ItemViewStates.Selected);
 								IViewableItem focusedItem = FocusedItem;
 								ItemInformation itemInformation = GetItemInformation(focusedItem);
 								foreach (GroupHeaderInformation displayedGroup in displayedGroups)
@@ -3339,25 +3361,46 @@ namespace cYo.Common.Windows.Forms
 										}
 									}
 									itemDrawInformation.GroupItem = -1;
-									foreach (IViewableItem item in displayedGroup.Items)
+									List<IViewableItem> groupItems = displayedGroup.Items;
+									int groupBase = itemDrawInformation.Item + 1;
+									// SelectedItems relies on this list being in display order
+									if (selected.Count > 0)
 									{
-										itemDrawInformation.Item++;
-										itemDrawInformation.GroupItem++;
+										foreach (IViewableItem item in groupItems)
+										{
+											if (selected.Contains(item) && item.View != null && !GetItemBounds(item).IsEmpty)
+											{
+												selectedItems.Add(item);
+											}
+										}
+									}
+									// Only the items around the view are visited, so huge libraries paint as fast as small ones
+									int beyondView = 0;
+									for (int index = IsStacked ? 0 : FirstItemNear(groupItems, viewRectangle.Top); index < groupItems.Count; index++)
+									{
+										IViewableItem item = groupItems[index];
+										itemDrawInformation.Item = groupBase + index;
+										itemDrawInformation.GroupItem = index;
 										if (item.View == null)
 										{
 											continue;
 										}
 										Rectangle itemBounds = GetItemBounds(item);
-										bool flag = false;
 										if (itemBounds.IsEmpty)
 										{
 											continue;
 										}
-										if ((itemStates[item] & ItemViewStates.Selected) != 0)
+										if (!IsStacked && itemBounds.Top > viewRectangle.Bottom)
 										{
-											selectedItems.Add(item);
-											flag = true;
+											// Items are laid out row by row; a run of items below the view means the rest are too
+											if (++beyondView > ItemScanMargin)
+											{
+												break;
+											}
+											continue;
 										}
+										beyondView = 0;
+										bool flag = selected.Contains(item);
 										if (!viewRectangle.IntersectsWith(itemBounds))
 										{
 											continue;
@@ -3427,12 +3470,51 @@ namespace cYo.Common.Windows.Forms
 											}
 										}
 									}
+									itemDrawInformation.Item = groupBase + groupItems.Count - 1;
 								}
 							}
 						}
 					}
 				}
 			}
+		}
+
+		// Overlays drawn at fixed window positions (background image, rubber band selection, drag
+		// marker, column resizing) would smear if the view's pixels were moved while scrolling
+		protected override bool CanScrollContents => BackgroundImage == null && selectionRect.IsEmpty && !MarkerVisible && resizeColumn == null && dragHeader == null && InplaceEditItem == null;
+
+		// Width of fixed decorations a PostPaint handler draws along the view's edges
+		[DefaultValue(typeof(Padding), "0, 0, 0, 0")]
+		public Padding ScrollFixedMargin { get; set; }
+
+		protected override Padding FixedContentsMargin => ScrollFixedMargin;
+
+		// Items scanned before/after the visible ones, in case a row's items differ in height
+		private const int ItemScanMargin = 64;
+
+		// Index a little before the first item reaching below y (items are laid out row by row)
+		private int FirstItemNear(List<IViewableItem> items, int y)
+		{
+			int lo = 0;
+			int hi = items.Count;
+			while (lo < hi)
+			{
+				int mid = (lo + hi) / 2;
+				Rectangle bounds = GetItemBounds(items[mid]);
+				if (bounds.IsEmpty)
+				{
+					return 0;
+				}
+				if (bounds.Bottom <= y)
+				{
+					lo = mid + 1;
+				}
+				else
+				{
+					hi = mid;
+				}
+			}
+			return Math.Max(0, lo - ItemScanMargin);
 		}
 
 		private Color GetTextColor(ItemViewStates drawState)
@@ -4034,7 +4116,8 @@ namespace cYo.Common.Windows.Forms
 						}
 					}
 				}
-				if (!customClick)
+				// Single middle clicks already activated the item; a double one would open it twice
+				if (!customClick && !(MiddleClickActivates && lastMouseButton == MouseButtons.Middle))
 				{
 					activateButton = lastMouseButton;
 					try
@@ -4243,6 +4326,23 @@ namespace cYo.Common.Windows.Forms
 			else
 			{
 				OnMouseUpView(e);
+				bool moved = Math.Abs(mouseDownPoint.X - e.X) > SystemInformation.DragSize.Width || Math.Abs(mouseDownPoint.Y - e.Y) > SystemInformation.DragSize.Height;
+				if (MiddleClickActivates && e.Button == MouseButtons.Middle && !moved && !customClick)
+				{
+					IViewableItem item = ItemHitTest(e.X, e.Y);
+					if (item != null && item == FocusedItem)
+					{
+						activateButton = MouseButtons.Middle;
+						try
+						{
+							InvokeActivate();
+						}
+						finally
+						{
+							activateButton = MouseButtons.None;
+						}
+					}
+				}
 			}
 			if (e.Button == MouseButtons.Left && AreGroupsVisible && !doubleGroupClick)
 			{

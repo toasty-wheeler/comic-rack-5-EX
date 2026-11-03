@@ -912,6 +912,9 @@ namespace cYo.Projects.ComicRack.Viewer.Views
             {
                 return;
             }
+            itemView.MiddleClickActivates = true;
+            // The inner shadow drawn in itemView_PostPaint stays put while the list scrolls
+            itemView.ScrollFixedMargin = new Padding(ListShadowSize);
             commands.Add(delegate
             {
                 QuickSearchType = ComicBookAllPropertiesMatcher.MatcherOption.All;
@@ -1445,9 +1448,11 @@ namespace cYo.Projects.ComicRack.Viewer.Views
             }
         }
 
+        private const int ListShadowSize = 8;
+
         private void itemView_PostPaint(object sender, PaintEventArgs e)
         {
-            e.Graphics.DrawShadow(itemView.DisplayRectangle, 8, Color.Black, 0.125f, BlurShadowType.Inside, BlurShadowParts.Edges);
+            e.Graphics.DrawShadow(itemView.DisplayRectangle, ListShadowSize, Color.Black, 0.125f, BlurShadowType.Inside, BlurShadowParts.Edges);
         }
 
         private void searchBrowserContainer_ExpandedChanged(object sender, EventArgs e)
@@ -2668,7 +2673,9 @@ namespace cYo.Projects.ComicRack.Viewer.Views
             if (coverViewItem != null && base.Main != null)
             {
                 coverViewItem.Comic.LastOpenedFromListId = BookList.Id;
-                base.Main.OpenBooks.Open(coverViewItem.Comic, Program.Settings.OpenInNewTab ^ ((Control.ModifierKeys & Keys.Control) != 0 || (itemView.ActivateButton & MouseButtons.Middle) != 0));
+                // Middle click always opens a new tab, like a link in a browser
+                bool newTab = (itemView.ActivateButton & MouseButtons.Middle) != 0 || Program.Settings.OpenInNewTab ^ ((Control.ModifierKeys & Keys.Control) != 0);
+                base.Main.OpenBooks.Open(coverViewItem.Comic, newTab);
             }
         }
 

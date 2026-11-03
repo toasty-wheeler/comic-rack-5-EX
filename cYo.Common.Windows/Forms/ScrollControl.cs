@@ -3,6 +3,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using cYo.Common.Drawing;
 using cYo.Common.Mathematics;
@@ -307,8 +308,62 @@ namespace cYo.Common.Windows.Forms
 
 		private void ScrollValueChanged(object sender, EventArgs e)
 		{
-			Invalidate();
+			Point position = ScrollPosition;
+			Point delta = new Point(lastScrollPosition.X - position.X, lastScrollPosition.Y - position.Y);
+			lastScrollPosition = position;
+			if (!ScrollContents(delta))
+			{
+				Invalidate();
+			}
 			OnScroll();
+		}
+
+		private Point lastScrollPosition;
+
+		// True when everything drawn in the view moves with the scroll position (no fixed overlays or
+		// background image), so scrolling may move the pixels on screen instead of repainting them
+		protected virtual bool CanScrollContents => false;
+
+		// Bands along the view's edges with fixed decorations (e.g. an inner shadow): they are
+		// repainted instead of moved
+		protected virtual Padding FixedContentsMargin => Padding.Empty;
+
+		[StructLayout(LayoutKind.Sequential)]
+		private struct RECT
+		{
+			public int Left, Top, Right, Bottom;
+		}
+
+		[DllImport("user32.dll")]
+		private static extern int ScrollWindowEx(IntPtr hWnd, int dx, int dy, ref RECT scroll, ref RECT clip, IntPtr updateRegion, IntPtr updateRect, uint flags);
+
+		private const uint SW_INVALIDATE = 0x0002;
+
+		// Vertical scrolling moves the view's pixels and only the uncovered strip is repainted,
+		// which keeps big lists smooth; anything else repaints the whole view
+		private bool ScrollContents(Point delta)
+		{
+			Rectangle view = ViewRectangle;
+			Padding fixedMargin = FixedContentsMargin;
+			Rectangle moving = Rectangle.FromLTRB(view.Left + fixedMargin.Left, view.Top + fixedMargin.Top, view.Right - fixedMargin.Right, view.Bottom - fixedMargin.Bottom);
+			if (delta.X != 0 || delta.Y == 0 || !CanScrollContents || !base.IsHandleCreated || !base.Visible || moving.Width <= 0 || moving.Height <= 0 || Math.Abs(delta.Y) >= moving.Height / 2)
+			{
+				return false;
+			}
+			RECT rc = new RECT { Left = moving.Left, Top = moving.Top, Right = moving.Right, Bottom = moving.Bottom };
+			// The pending update region is moved along with the pixels
+			if (ScrollWindowEx(base.Handle, 0, delta.Y, ref rc, ref rc, IntPtr.Zero, IntPtr.Zero, SW_INVALIDATE) == 0)
+			{
+				return false;
+			}
+			if (fixedMargin != Padding.Empty)
+			{
+				Invalidate(Rectangle.FromLTRB(view.Left, view.Top, view.Right, moving.Top));
+				Invalidate(Rectangle.FromLTRB(view.Left, moving.Bottom, view.Right, view.Bottom));
+				Invalidate(Rectangle.FromLTRB(view.Left, moving.Top, moving.Left, moving.Bottom));
+				Invalidate(Rectangle.FromLTRB(moving.Right, moving.Top, view.Right, moving.Bottom));
+			}
+			return true;
 		}
 
 		private void ScrollbarVisibilityChanged(object sender, EventArgs e)

@@ -214,7 +214,7 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 			lnkUpdate.AutoSize = true;
 			lnkUpdate.Margin = new Padding(6, 5, 6, 3);
 			lnkUpdate.LinkClicked += (s, e) => UpdateModules();
-			lnkExtension.Text = "Browser extension…";
+			lnkExtension.Text = "Edge extension…";
 			lnkExtension.AutoSize = true;
 			lnkExtension.Margin = new Padding(6, 5, 6, 3);
 			lnkExtension.LinkClicked += (s, e) => ShowBrowserExtensionHelp();
@@ -690,17 +690,29 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 
 		private void ShowBrowserExtensionHelp()
 		{
-			string text = "The ComicRack browser extension downloads the comic on the page you're viewing, "
-				+ "in your browser, and sends it here to be packed and added to your library.\n\n"
-				+ "To install it in Chrome, Edge, Brave, Opera or Vivaldi:\n"
-				+ "1. Open the extensions page (chrome://extensions or edge://extensions)\n"
-				+ "2. Turn on \"Developer mode\"\n"
-				+ "3. Click \"Load unpacked\" and select the folder that opens next\n\n"
-				+ "The toolbar icon turns green on pages ComicRack has a site module for. "
-				+ "Downloads use the format and folder chosen on this tab.\n\nOpen the extension folder now?";
-			if (MessageBox.Show(this, text, "Browser extension", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.OK && Directory.Exists(BrowserExtensionFolder))
+			string text = "The ComicRack extension for Microsoft Edge downloads the comic on the page you're viewing, "
+				+ "in Edge, and sends it here to be packed and added to your library.\n\n"
+				+ "To install it:\n"
+				+ "1. On Edge's Extensions page (opened for you next), turn on \"Developer mode\" in the left pane\n"
+				+ "2. Click \"Load unpacked\" and select the extension folder (also opened next)\n"
+				+ "3. Click the puzzle-piece button in Edge's toolbar and the eye icon next to \"ComicRack Downloader\" to show it\n\n"
+				+ "The icon turns green on pages ComicRack has a site module for. "
+				+ "Downloads use the format and folder chosen on this tab.\n\nOpen Edge's Extensions page and the extension folder now?";
+			if (MessageBox.Show(this, text, "Edge extension", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK)
+			{
+				return;
+			}
+			if (Directory.Exists(BrowserExtensionFolder))
 			{
 				Process.Start("explorer.exe", "\"" + BrowserExtensionFolder + "\"");
+			}
+			try
+			{
+				Process.Start(new ProcessStartInfo("msedge.exe", "edge://extensions/") { UseShellExecute = true });
+			}
+			catch (Exception)
+			{
+				MessageBox.Show(this, "Microsoft Edge wasn't found. Open edge://extensions in Edge yourself.", "Edge extension", MessageBoxButtons.OK, MessageBoxIcon.Information);
 			}
 		}
 

@@ -2,7 +2,8 @@
   "manifest_version": 3,
   "name": "ComicRack Downloader",
   "version": "1.0.0",
-  "description": "Downloads the comic on the current page into ComicRack Community Edition, with its metadata.",
+  "description": "Downloads the comic on the current page into ComicRack Community Edition, with its metadata. Made for Microsoft Edge.",
+  "minimum_chrome_version": "116",
   "permissions": ["tabs", "scripting", "declarativeNetRequest", "notifications"],
   "host_permissions": ["<all_urls>"],
   "background": {

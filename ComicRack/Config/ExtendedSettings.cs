@@ -406,7 +406,8 @@ namespace cYo.Projects.ComicRack.Viewer.Config
 			set;
 		}
 
-		[DefaultValue(false)]
+		// Draw thumbnails in a fast mode while lists scroll and refine them once scrolling stops
+		[DefaultValue(true)]
 		public bool OptimizedListScrolling
 		{
 			get;
@@ -523,7 +524,7 @@ namespace cYo.Projects.ComicRack.Viewer.Config
 			HideBrowserIfShellOpen = true;
 			DragDropCursorAlpha = 0.6f;
 			ListMenuSize = 25;
-			OptimizedListScrolling = false;
+			OptimizedListScrolling = true;
 			QuickOpenListSize = 10;
 			RemoteLibrariesInQuickOpen = true;
 			OnlyLocalRemoteLibrariesInQuickOpen = true;
