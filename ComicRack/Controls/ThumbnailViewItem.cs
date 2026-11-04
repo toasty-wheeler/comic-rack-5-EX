@@ -210,6 +210,77 @@ namespace cYo.Projects.ComicRack.Viewer.Controls
 			}
 		}
 
+		public const int GrowTime = 120;
+
+		private static readonly List<ThumbnailViewItem> growingItems = new List<ThumbnailViewItem>();
+
+		private static System.Windows.Forms.Timer growTimer;
+
+		private static readonly System.Diagnostics.Stopwatch growClock = System.Diagnostics.Stopwatch.StartNew();
+
+		private static long lastGrowTick;
+
+		private float grow;
+
+		private bool growTarget;
+
+		private bool growDrawn;
+
+		// Hover/selection growth for the current paint (0 to 1). A change of target is animated;
+		// the first paint starts at the target, so selected covers don't all grow when a list shows.
+		protected float GetGrow(bool grown)
+		{
+			growTarget = grown;
+			float target = grown ? 1f : 0f;
+			if (!growDrawn)
+			{
+				growDrawn = true;
+				grow = target;
+			}
+			else if (grow != target && !growingItems.Contains(this))
+			{
+				growingItems.Add(this);
+				if (growTimer == null)
+				{
+					growTimer = new System.Windows.Forms.Timer { Interval = 10 };
+					growTimer.Tick += GrowTimer_Tick;
+				}
+				if (!growTimer.Enabled)
+				{
+					lastGrowTick = growClock.ElapsedMilliseconds;
+					growTimer.Start();
+				}
+			}
+			return grow;
+		}
+
+		private static void GrowTimer_Tick(object sender, EventArgs e)
+		{
+			long now = growClock.ElapsedMilliseconds;
+			float step = Math.Max(1, now - lastGrowTick) / (float)GrowTime;
+			lastGrowTick = now;
+			for (int i = growingItems.Count - 1; i >= 0; i--)
+			{
+				ThumbnailViewItem item = growingItems[i];
+				if (item.disposed || item.View == null)
+				{
+					growingItems.RemoveAt(i);
+					continue;
+				}
+				float target = item.growTarget ? 1f : 0f;
+				item.grow = target > item.grow ? Math.Min(target, item.grow + step) : Math.Max(target, item.grow - step);
+				if (item.grow == target)
+				{
+					growingItems.RemoveAt(i);
+				}
+				item.Update();
+			}
+			if (growingItems.Count == 0)
+			{
+				growTimer.Stop();
+			}
+		}
+
 		private static void AddAnimation(ThumbnailViewItem item)
 		{
 			if (animationTimer == null)

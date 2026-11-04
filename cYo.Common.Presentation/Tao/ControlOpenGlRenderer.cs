@@ -301,6 +301,12 @@ namespace cYo.Common.Presentation.Tao
 
 		protected override void Dispose(bool disposing)
 		{
+			// From the finalizer the window and OpenGL context can't be touched (wrong thread, maybe
+			// already gone); the driver frees the context with the process
+			if (!disposing)
+			{
+				return;
+			}
 			if (Control != null)
 			{
 				Control.Paint -= window_Paint;

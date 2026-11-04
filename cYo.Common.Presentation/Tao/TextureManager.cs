@@ -55,7 +55,13 @@ namespace cYo.Common.Presentation.Tao
 
 			protected override void Dispose(bool disposing)
 			{
-				Destroy();
+				// Only with the OpenGL context current (an explicit Dispose on the render thread).
+				// The finalizer runs on its own thread without a context: glDeleteTextures crashed
+				// the driver there when ComicRack closed. The texture goes with its context anyway.
+				if (disposing)
+				{
+					Destroy();
+				}
 				base.Dispose(disposing);
 			}
 
@@ -279,7 +285,11 @@ namespace cYo.Common.Presentation.Tao
 
 		protected override void Dispose(bool disposing)
 		{
-			textures.Dispose();
+			// Disposing the textures deletes them in OpenGL, which needs the render thread
+			if (disposing)
+			{
+				textures.Dispose();
+			}
 			base.Dispose(disposing);
 		}
 

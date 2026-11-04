@@ -12,6 +12,36 @@ namespace cYo.Projects.ComicRack.Engine.Drawing
 			set;
 		}
 
+		// Hover/selection growth, 0 (normal) to 1 (grown); negative turns it off. Covers are drawn a
+		// bit smaller than their space and grow into all of it (border included), anchored at the
+		// bottom, so a grown cover never paints outside its item.
+		public float Grow
+		{
+			get;
+			set;
+		} = -1f;
+
+		public const float NormalScale = 0.94f;
+
+		private Rectangle GetGrownBounds(Rectangle area)
+		{
+			if (Grow < 0f)
+			{
+				return area;
+			}
+			Rectangle full = Rectangle.FromLTRB(area.Left - base.Border.Width, area.Top - base.Border.Height, area.Right + base.Border.Width, area.Bottom);
+			int w = (int)(area.Width * NormalScale);
+			int h = (int)(area.Height * NormalScale);
+			Rectangle normal = new Rectangle(area.Left + (area.Width - w) / 2, area.Bottom - h, w, h);
+			float g = Grow > 1f ? 1f : Grow;
+			return Rectangle.FromLTRB(Lerp(normal.Left, full.Left, g), Lerp(normal.Top, full.Top, g), Lerp(normal.Right, full.Right, g), Lerp(normal.Bottom, full.Bottom, g));
+		}
+
+		private static int Lerp(int a, int b, float t)
+		{
+			return a + (int)((b - a) * t + 0.5f);
+		}
+
 		public ThumbIconRenderer(Image image, ThumbnailDrawingOptions flags)
 		{
 			TextHeight = 45;
@@ -26,7 +56,7 @@ namespace cYo.Projects.ComicRack.Engine.Drawing
 			Rectangle rectangle2 = rectangle;
 			rectangle2.Height -= TextHeight;
 			Point location = new Point(rectangle2.Left, rectangle2.Top);
-			Rectangle rectangle3 = DrawThumbnail(graphics, new Rectangle(location, rectangle2.Size));
+			Rectangle rectangle3 = DrawThumbnail(graphics, GetGrownBounds(new Rectangle(location, rectangle2.Size)));
 			if (base.TextLines.Count == 0)
 			{
 				return rectangle3;

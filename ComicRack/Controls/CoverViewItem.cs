@@ -583,6 +583,7 @@ namespace cYo.Projects.ComicRack.Viewer.Controls
 							});
 							thumbIconRenderer.BackImage = backImage;
 							thumbIconRenderer.ImageOpacity = base.Opacity;
+							thumbIconRenderer.Grow = GetGrow(base.Hot || base.Selected);
 							ThumbIconRenderer thumbIconRenderer2 = thumbIconRenderer;
 							if (list != null)
 							{
