@@ -307,9 +307,17 @@ namespace cYo.Common.Windows.Forms
 				thumbStick.Dispose();
 				scrollTimer.Dispose();
 				scrollEndTimer.Dispose();
-				surface?.Dispose();
-				surfaceContext?.Dispose();
-				surfaceDirty.Dispose();
+				// Messages still arrive while the window is destroyed (WM_SHOWWINDOW raising
+				// VisibleChanged): the surface is marked gone first, they are ignored then
+				lock (surfaceLock)
+				{
+					surfaceDisposed = true;
+					surface?.Dispose();
+					surface = null;
+					surfaceContext?.Dispose();
+					surfaceContext = null;
+					surfaceDirty.Dispose();
+				}
 			}
 			base.Dispose(disposing);
 		}
@@ -475,11 +483,16 @@ namespace cYo.Common.Windows.Forms
 
 		private const int WM_PAINT = 0x000F;
 
+		private bool surfaceDisposed;
+
 		private void MarkSurfaceDirty(Rectangle rc)
 		{
 			lock (surfaceLock)
 			{
-				surfaceDirty.Union(rc);
+				if (!surfaceDisposed)
+				{
+					surfaceDirty.Union(rc);
+				}
 			}
 		}
 
@@ -505,7 +518,7 @@ namespace cYo.Common.Windows.Forms
 
 		protected override void WndProc(ref Message m)
 		{
-			if (m.Msg == WM_PAINT && RetainedPaint && m.WParam == IntPtr.Zero)
+			if (m.Msg == WM_PAINT && RetainedPaint && !surfaceDisposed && m.WParam == IntPtr.Zero)
 			{
 				PaintFromSurface();
 				return;
@@ -583,7 +596,7 @@ namespace cYo.Common.Windows.Forms
 		// Moves the surface's pixels inside view by dy; areas waiting to be painted move along
 		private bool ScrollSurface(Rectangle view, int dy)
 		{
-			if (surface == null || surfaceSize != ClientSize)
+			if (surfaceDisposed || surface == null || surfaceSize != ClientSize)
 			{
 				return false;
 			}
