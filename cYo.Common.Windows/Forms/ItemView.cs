@@ -3522,8 +3522,60 @@ namespace cYo.Common.Windows.Forms
 			return ForeColor;
 		}
 
+		[System.Runtime.InteropServices.DllImport("user32.dll")]
+		private static extern int GetUpdateRgn(IntPtr hWnd, IntPtr hRgn, bool erase);
+
+		[System.Runtime.InteropServices.DllImport("gdi32.dll")]
+		private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
+
+		[System.Runtime.InteropServices.DllImport("gdi32.dll")]
+		private static extern bool DeleteObject(IntPtr handle);
+
+		private const int WM_PAINT = 0x000F;
+
+		private const int COMPLEXREGION = 3;
+
+		// Areas invalidated apart from each other (the strip uncovered by scrolling and a cover that
+		// finished loading) are painted with the clip they span, which would draw every item in
+		// between; clipping to the update region itself skips those
+		private Region paintRegion;
+
+		protected override void WndProc(ref Message m)
+		{
+			if (m.Msg != WM_PAINT || m.WParam != IntPtr.Zero)
+			{
+				base.WndProc(ref m);
+				return;
+			}
+			IntPtr rgn = CreateRectRgn(0, 0, 0, 0);
+			try
+			{
+				if (GetUpdateRgn(base.Handle, rgn, erase: false) == COMPLEXREGION)
+				{
+					paintRegion = Region.FromHrgn(rgn);
+				}
+			}
+			finally
+			{
+				DeleteObject(rgn);
+			}
+			try
+			{
+				base.WndProc(ref m);
+			}
+			finally
+			{
+				paintRegion?.Dispose();
+				paintRegion = null;
+			}
+		}
+
 		protected override void OnPaintBackground(PaintEventArgs e)
 		{
+			if (paintRegion != null)
+			{
+				e.Graphics.IntersectClip(paintRegion);
+			}
 			try
 			{
 				UpdatePositions(e.Graphics);
@@ -3541,6 +3593,10 @@ namespace cYo.Common.Windows.Forms
 			Graphics graphics = e.Graphics;
 			using (graphics.SaveState())
 			{
+				if (paintRegion != null)
+				{
+					graphics.IntersectClip(paintRegion);
+				}
 				try
 				{
 					if (UpdatePositions(graphics))
@@ -4394,7 +4450,7 @@ namespace cYo.Common.Windows.Forms
 			}
 		}
 
-		private Timer smoothScrollTimer;
+		private FramePacer smoothScrollTimer;
 
 		private PointF smoothScrollCurrent;
 
@@ -4423,15 +4479,12 @@ namespace cYo.Common.Windows.Forms
 			}
 			if (smoothScrollTimer == null)
 			{
-				smoothScrollTimer = new Timer
-				{
-					Interval = 10
-				};
+				smoothScrollTimer = new FramePacer(this);
 				smoothScrollTimer.Tick += SmoothScrollTimerTick;
 			}
 			if (!running)
 			{
-				smoothScrollLastTicks = Environment.TickCount;
+				smoothScrollLastTicks = System.Diagnostics.Stopwatch.GetTimestamp();
 				smoothScrollLastSet = base.ScrollPosition;
 				smoothScrollTimer.Start();
 			}
@@ -4445,8 +4498,8 @@ namespace cYo.Common.Windows.Forms
 				smoothScrollTimer.Stop();
 				return;
 			}
-			long ticks = Environment.TickCount;
-			float dt = Math.Max(1L, ticks - smoothScrollLastTicks);
+			long ticks = System.Diagnostics.Stopwatch.GetTimestamp();
+			float dt = ((float)(ticks - smoothScrollLastTicks) * 1000f / (float)System.Diagnostics.Stopwatch.Frequency).Clamp(0.1f, 50f);
 			smoothScrollLastTicks = ticks;
 			float ease = 1f - (float)Math.Exp(-dt / 70f);
 			smoothScrollCurrent.X += (smoothScrollTarget.X - smoothScrollCurrent.X) * ease;
@@ -4459,6 +4512,8 @@ namespace cYo.Common.Windows.Forms
 			Point requested = new Point((int)Math.Round(smoothScrollCurrent.X), (int)Math.Round(smoothScrollCurrent.Y));
 			base.ScrollPosition = requested;
 			smoothScrollLastSet = base.ScrollPosition;
+			// Paint now, so the frame makes this refresh
+			Update();
 			if (done || smoothScrollLastSet != requested)
 			{
 				// Finished, or clamped at the start/end of the list

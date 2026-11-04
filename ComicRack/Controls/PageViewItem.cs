@@ -192,7 +192,7 @@ namespace cYo.Projects.ComicRack.Viewer.Controls
 					{
 						thumbnailDrawingOptions |= ThumbnailDrawingOptions.Hot;
 					}
-					if (base.View.InScrollOrResize)
+					if (base.View.InFastPaint)
 					{
 						thumbnailDrawingOptions |= ThumbnailDrawingOptions.FastMode;
 					}

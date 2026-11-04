@@ -161,8 +161,13 @@ namespace cYo.Projects.ComicRack.Viewer.Controls
 			{
 				DecodeInBackground(key, height);
 			});
-			return thumbnail.DecodedThumbnail;
+			Bitmap decoded = thumbnail.DecodedThumbnail;
+			decodePending = decoded == null;
+			return decoded;
 		}
+
+		// The cover exists and is only being decoded: no fade-in when it shows up
+		private bool decodePending;
 
 		private void DecodeInBackground(ThumbnailKey key, int height)
 		{
@@ -283,9 +288,14 @@ namespace cYo.Projects.ComicRack.Viewer.Controls
 			}
 			if (image == null)
 			{
-				validImage = false;
+				if (!decodePending)
+				{
+					validImage = false;
+				}
+				decodePending = false;
 				return;
 			}
+			decodePending = false;
 			if (!validImage)
 			{
 				opacity = 0f;

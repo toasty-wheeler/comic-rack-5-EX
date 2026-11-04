@@ -80,7 +80,9 @@ namespace cYo.Common.Drawing
 				graphics.CompositingMode = CompositingMode.SourceOver;
 				graphics.CompositingQuality = CompositingQuality.HighSpeed;
 				graphics.SmoothingMode = SmoothingMode.None;
-				graphics.PixelOffsetMode = PixelOffsetMode.Half;
+				// Same pixel grid as normal drawing: a half pixel offset moved images against their
+				// borders and shadows, so covers looked detached while a list scrolled
+				graphics.PixelOffsetMode = PixelOffsetMode.HighSpeed;
 				graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
 			}
 			else

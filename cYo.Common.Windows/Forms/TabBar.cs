@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
 using System.Windows.Forms.VisualStyles;
@@ -46,6 +47,8 @@ namespace cYo.Common.Windows.Forms
 			private bool visible = true;
 
 			private bool fontBold;
+
+			private bool glow;
 
 			private TextFormatFlags textFormat = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.PreserveGraphicsClipping;
 
@@ -239,6 +242,20 @@ namespace cYo.Common.Windows.Forms
 				set
 				{
 					SetValue(ref fontBold, value);
+				}
+			}
+
+			// Highlighted with an accent colored glow
+			[DefaultValue(false)]
+			public bool Glow
+			{
+				get
+				{
+					return glow;
+				}
+				set
+				{
+					SetValue(ref glow, value);
 				}
 			}
 
@@ -1848,6 +1865,10 @@ namespace cYo.Common.Windows.Forms
 			}
 			Rectangle bounds = item.Bounds;
             DrawTabItem(gr, bounds, item.State, buttonMode: false);
+			if (item.Glow)
+			{
+				DrawGlow(gr, bounds);
+			}
             bounds = bounds.Pad(2, 2, 2);
 			if (Focused && item.State == TabItemState.Selected)
 			{
@@ -1871,6 +1892,25 @@ namespace cYo.Common.Windows.Forms
 			if (!item.CloseBounds.IsEmpty)
 			{
 				gr.DrawImage(closeImage, item.CloseBounds, new BitmapAdjustment(item.CloseButtonHot ? 0f : (-0.8f)));
+			}
+		}
+
+		// An accent line along the top that fades into the tab
+		protected virtual void DrawGlow(Graphics gr, Rectangle bounds)
+		{
+			Rectangle rc = bounds.Pad(1, 1, 1);
+			if (rc.Width <= 0 || rc.Height <= 0)
+			{
+				return;
+			}
+			Color accent = SystemColors.Highlight;
+			using (LinearGradientBrush brush = new LinearGradientBrush(rc, Color.FromArgb(160, accent), Color.FromArgb(20, accent), LinearGradientMode.Vertical))
+			{
+				gr.FillRectangle(brush, rc);
+			}
+			using (Brush brush = new SolidBrush(accent))
+			{
+				gr.FillRectangle(brush, rc.Left, rc.Top, rc.Width, FormUtility.ScaleDpiY(2));
 			}
 		}
 

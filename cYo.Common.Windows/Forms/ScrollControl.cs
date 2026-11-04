@@ -233,6 +233,15 @@ namespace cYo.Common.Windows.Forms
 			private set;
 		}
 
+		// The whole view is repainted while scrolling or resizing, so it may be drawn in a faster,
+		// lower quality (and repainted properly afterwards). Not while scrolling moves pixels: the
+		// moved parts were drawn at full quality and the repainted strips must match them.
+		public bool InFastPaint
+		{
+			get;
+			private set;
+		}
+
 		protected override bool ScaleChildren => false;
 
 		public event EventHandler<AutoScrollEventArgs> AutoScrolling;
@@ -258,7 +267,19 @@ namespace cYo.Common.Windows.Forms
 				}
 				scrollEndTimer.Stop();
 				InScrollOrResize = false;
-				Invalidate();
+				if (InFastPaint)
+				{
+					InFastPaint = false;
+					Invalidate();
+				}
+				else if (fixedMarginsMoved)
+				{
+					Rectangle view = ViewRectangle;
+					Padding fixedMargin = FixedContentsMargin;
+					Invalidate(Rectangle.FromLTRB(view.Left, view.Top, view.Right, view.Top + fixedMargin.Top));
+					Invalidate(Rectangle.FromLTRB(view.Left, view.Bottom - fixedMargin.Bottom, view.Right, view.Bottom));
+				}
+				fixedMarginsMoved = false;
 			};
 			hScrollbar.TabStop = (vScrollBar.TabStop = (thumbStick.TabStop = false));
 			hScrollbar.Visible = (vScrollBar.Visible = (thumbStick.Visible = true));
@@ -321,12 +342,18 @@ namespace cYo.Common.Windows.Forms
 			lastScrollPosition = position;
 			if (!ScrollContents(delta))
 			{
+				if (ScrollResizeRefresh)
+				{
+					InFastPaint = true;
+				}
 				Invalidate();
 			}
 			OnScroll();
 		}
 
 		private Point lastScrollPosition;
+
+		private bool fixedMarginsMoved;
 
 		// True when everything drawn in the view moves with the scroll position (no fixed overlays or
 		// background image), so scrolling may move the pixels on screen instead of repainting them
@@ -358,7 +385,7 @@ namespace cYo.Common.Windows.Forms
 			{
 				return false;
 			}
-			RECT rc = new RECT { Left = moving.Left, Top = moving.Top, Right = moving.Right, Bottom = moving.Bottom };
+			RECT rc = new RECT { Left = view.Left, Top = view.Top, Right = view.Right, Bottom = view.Bottom };
 			// The pending update region is moved along with the pixels
 			if (ScrollWindowEx(base.Handle, 0, delta.Y, ref rc, ref rc, IntPtr.Zero, IntPtr.Zero, SW_INVALIDATE) == 0)
 			{
@@ -366,10 +393,19 @@ namespace cYo.Common.Windows.Forms
 			}
 			if (fixedMargin != Padding.Empty)
 			{
-				Invalidate(Rectangle.FromLTRB(view.Left, view.Top, view.Right, moving.Top));
-				Invalidate(Rectangle.FromLTRB(view.Left, moving.Bottom, view.Right, view.Bottom));
-				Invalidate(Rectangle.FromLTRB(view.Left, moving.Top, moving.Left, moving.Bottom));
-				Invalidate(Rectangle.FromLTRB(moving.Right, moving.Top, view.Right, moving.Bottom));
+				// The band at the edge the list moves out of is repainted with the uncovered strip
+				// (one rectangle, so the paint stays small). The bands along the sides move along,
+				// they look the same at any height. The band at the other edge carries the moved
+				// pixels until scrolling stops and is repainted then.
+				if (delta.Y < 0)
+				{
+					Invalidate(Rectangle.FromLTRB(view.Left, view.Bottom - fixedMargin.Bottom + delta.Y, view.Right, view.Bottom));
+				}
+				else
+				{
+					Invalidate(Rectangle.FromLTRB(view.Left, view.Top, view.Right, view.Top + fixedMargin.Top + delta.Y));
+				}
+				fixedMarginsMoved = true;
 			}
 			return true;
 		}
@@ -405,7 +441,8 @@ namespace cYo.Common.Windows.Forms
 
 		protected virtual void OnScroll()
 		{
-			if (ScrollResizeRefresh)
+			// the moved fixed bands are repainted when scrolling ends
+			if (ScrollResizeRefresh || fixedMarginsMoved)
 			{
 				MarkScrollOrResize();
 			}
@@ -416,6 +453,7 @@ namespace cYo.Common.Windows.Forms
 		{
 			if (ScrollResizeRefresh)
 			{
+				InFastPaint = true;
 				MarkScrollOrResize();
 			}
 			OnResize(EventArgs.Empty);

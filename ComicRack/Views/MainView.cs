@@ -59,7 +59,8 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 		{
 			Name = "tsbPages",
 			Image = Resources.ComicPage,
-			Padding = new Padding(0, 0, 8, 0),
+			// grouped with Downloads, which follows it
+			Padding = new Padding(0, 0, 0, 0),
 			AdjustWidth = false
 		};
 
@@ -511,7 +512,7 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 			{
 				fileTab.Visible = base.Main.BrowserDock == DockStyle.Fill && !base.Main.ReaderUndocked;
 				int num = (int)fileTab.Tag;
-				fileTab.FontBold = num >= 0 && num == base.Main.OpenBooks.CurrentSlot;
+				fileTab.FontBold = (fileTab.Glow = num >= 0 && num == base.Main.OpenBooks.CurrentSlot);
 			}
 			bool flag = base.Main.OpenBooks.CurrentBook != null;
 			if (!flag && tabStrip.SelectedTab == tsbPages)

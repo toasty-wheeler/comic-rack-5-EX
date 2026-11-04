@@ -547,7 +547,7 @@ namespace cYo.Projects.ComicRack.Viewer.Controls
 					{
 						thumbnailDrawingOptions &= ~ThumbnailDrawingOptions.EnableBowShadow;
 					}
-					if (base.View.InScrollOrResize)
+					if (base.View.InFastPaint)
 					{
 						thumbnailDrawingOptions |= ThumbnailDrawingOptions.FastMode;
 					}
@@ -696,7 +696,7 @@ namespace cYo.Projects.ComicRack.Viewer.Controls
 										rectangle.Inflate(-2, -2);
 										drawInfo.Graphics.IntersectClip(rectangle);
 										ThumbnailDrawingOptions thumbnailDrawingOptions2 = ThumbnailDrawingOptions.EnableShadow | ThumbnailDrawingOptions.EnableHorizontalBookmarks;
-										if (base.View.InScrollOrResize)
+										if (base.View.InFastPaint)
 										{
 											thumbnailDrawingOptions2 |= ThumbnailDrawingOptions.FastMode;
 										}
@@ -706,7 +706,7 @@ namespace cYo.Projects.ComicRack.Viewer.Controls
 								case "Icons":
 								{
 									Graphics graphics = drawInfo.Graphics;
-									using (base.View.InScrollOrResize ? null : graphics.HighQuality(enabled: true))
+									using (base.View.InFastPaint ? null : graphics.HighQuality(enabled: true))
 									{
 										rectangle = drawInfo.Bounds;
 										rectangle.Inflate(-2, -2);
@@ -963,7 +963,7 @@ namespace cYo.Projects.ComicRack.Viewer.Controls
 			Rectangle bounds = rc.Pad(2, 4, 2, 4);
 			RatingRenderer r = new RatingRenderer(image, bounds)
 			{
-				Fast = base.View.InScrollOrResize
+				Fast = base.View.InFastPaint
 			};
 			if (setFunction != null && Comic.EditMode.CanEditProperties())
 			{
@@ -1049,7 +1049,7 @@ namespace cYo.Projects.ComicRack.Viewer.Controls
 			}
 			if (bitmap != null)
 			{
-				using (base.View.InScrollOrResize ? null : graphics.HighQuality(enabled: true))
+				using (base.View.InFastPaint ? null : graphics.HighQuality(enabled: true))
 				{
 					Rectangle bounds = rc.Pad(2, 4, 2, 4);
 					float scale = bitmap.Size.GetScale(bounds.Size, ScaleMode.FitAll, allowOversize: false);
