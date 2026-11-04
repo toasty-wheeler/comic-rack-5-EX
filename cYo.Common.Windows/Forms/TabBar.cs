@@ -1143,6 +1143,9 @@ namespace cYo.Common.Windows.Forms
 			ImageAnimate(tbi, enable: true);
 			if (tbi.State == TabItemState.Selected)
 			{
+				// Only a newly selected tab is scrolled into view: any change of the selected tab
+				// (hover, close button, text) snapped the tabs back after the arrows moved them
+				bool newlySelected = selectedTab != tbi;
 				selectedTab = tbi;
 				items.ForEach(delegate(TabBarItem x)
 				{
@@ -1151,7 +1154,10 @@ namespace cYo.Common.Windows.Forms
 						x.State = TabItemState.Normal;
 					}
 				});
-				EnsureVisible(tbi);
+				if (newlySelected)
+				{
+					EnsureVisible(tbi);
+				}
 			}
 			Invalidate();
 		}
@@ -1553,6 +1559,16 @@ namespace cYo.Common.Windows.Forms
 		protected override void OnMouseDown(MouseEventArgs e)
 		{
 			base.OnMouseDown(e);
+			// A click on an arrow moves the tabs right away, holding it keeps them moving
+			Rectangle tabsRectangle = TabsRectangle;
+			if (GetRightArrowBounds(tabsRectangle).Contains(e.Location))
+			{
+				TabsOffset -= ArrowClickStep;
+			}
+			else if (GetLeftArrowBounds(tabsRectangle).Contains(e.Location))
+			{
+				TabsOffset += ArrowClickStep;
+			}
 			scrollTimer.Enabled = true;
 			UpdateTabAndButtonStates(e);
 			clickPoint = e.Location;
@@ -1670,6 +1686,23 @@ namespace cYo.Common.Windows.Forms
 			{
 				SelectNextTab();
 			}
+		}
+
+		private static int ArrowClickStep => FormUtility.ScaleDpiX(80);
+
+		private const int WM_MOUSEHWHEEL = 0x020E;
+
+		// The horizontal wheel (tilt wheel, two-finger touchpad swipe) scrolls the tabs sideways
+		protected override void WndProc(ref Message m)
+		{
+			if (m.Msg == WM_MOUSEHWHEEL)
+			{
+				int delta = (short)((long)m.WParam >> 16);
+				TabsOffset -= delta * FormUtility.ScaleDpiX(60) / 120;
+				m.Result = (IntPtr)1;
+				return;
+			}
+			base.WndProc(ref m);
 		}
 
 		protected override void OnEnter(EventArgs e)
