@@ -280,6 +280,7 @@ namespace cYo.Common.Windows.Forms
 					Invalidate(Rectangle.FromLTRB(view.Left, view.Bottom - fixedMargin.Bottom, view.Right, view.Bottom));
 				}
 				fixedMarginsMoved = false;
+				OnScrollOrResizeEnded();
 			};
 			hScrollbar.TabStop = (vScrollBar.TabStop = (thumbStick.TabStop = false));
 			hScrollbar.Visible = (vScrollBar.Visible = (thumbStick.Visible = true));
@@ -437,6 +438,10 @@ namespace cYo.Common.Windows.Forms
 			{
 				scrollEndTimer.Start();
 			}
+		}
+
+		protected virtual void OnScrollOrResizeEnded()
+		{
 		}
 
 		protected virtual void OnScroll()

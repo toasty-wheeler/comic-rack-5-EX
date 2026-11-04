@@ -296,7 +296,9 @@ namespace cYo.Projects.ComicRack.Viewer.Controls
 				return;
 			}
 			decodePending = false;
-			if (!validImage)
+			// No fade while the list scrolls: covers arrive by the dozen then, and drawing them
+			// translucent every animation step took hundreds of milliseconds per frame
+			if (!validImage && base.View?.InScrollOrResize != true)
 			{
 				opacity = 0f;
 				AddAnimation(this);

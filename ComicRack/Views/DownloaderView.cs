@@ -368,6 +368,12 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 			base.OnVisibleChanged(e);
 			if (Visible)
 			{
+				if (initialized)
+				{
+					// The library folder may have been chosen elsewhere (empty library guide)
+					string folder = Program.Settings.DownloaderOutputFolder;
+					txtFolder.Text = string.IsNullOrEmpty(folder) ? DefaultOutputFolder : folder;
+				}
 				EnsureInitialized();
 			}
 			else if (initialized)

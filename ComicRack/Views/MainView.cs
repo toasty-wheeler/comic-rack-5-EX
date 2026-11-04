@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using cYo.Common.Collections;
@@ -51,7 +52,8 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 		{
 			Name = "tsbFolders",
 			Image = Resources.FileBrowser,
-			Padding = new Padding(0, 0, 8, 0),
+			// grouped with Downloads, which follows it
+			Padding = new Padding(0, 0, 0, 0),
 			AdjustWidth = false
 		};
 
@@ -59,8 +61,7 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 		{
 			Name = "tsbPages",
 			Image = Resources.ComicPage,
-			// grouped with Downloads, which follows it
-			Padding = new Padding(0, 0, 0, 0),
+			Padding = new Padding(0, 0, 8, 0),
 			AdjustWidth = false
 		};
 
@@ -171,8 +172,8 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 			{
 				tsbLibrary,
 				tsbFolders,
-				tsbPages,
-				tsbDownloads
+				tsbDownloads,
+				tsbPages
 			});
 			tabStripVisibility = new VisibilityAnimator(components, tabStrip);
 			tsbLibrary.CaptionClick += tab_CaptionClick;
@@ -500,6 +501,77 @@ namespace cYo.Projects.ComicRack.Viewer.Views
 		protected override void OnIdle()
 		{
 			OnGuiVisibility();
+			UpdateEmptyLibraryGuide();
+		}
+
+		private EmptyLibraryGuide emptyLibraryGuide;
+
+		private bool emptyLibraryGuideHidden;
+
+		// While the library has no books, its tab shows how to get some
+		public void UpdateEmptyLibraryGuide()
+		{
+			bool show = !emptyLibraryGuideHidden && tabStrip.SelectedTab == tsbLibrary && tsbDownloads.Visible
+				&& Program.Database != null && Program.Database.Books.Count == 0;
+			if (!show)
+			{
+				if (emptyLibraryGuide != null && emptyLibraryGuide.Visible)
+				{
+					emptyLibraryGuide.Visible = false;
+				}
+				return;
+			}
+			if (emptyLibraryGuide == null)
+			{
+				emptyLibraryGuide = new EmptyLibraryGuide
+				{
+					Dock = DockStyle.Fill,
+					Visible = false,
+					GetTargetBounds = () => tabStrip.RectangleToScreen(tsbDownloads.Bounds),
+					GetLibraryFolder = () => DownloaderView.OptionsFromSettings().OutputFolder
+				};
+				emptyLibraryGuide.OpenDownloads += (s, e) => ShowDownloads();
+				emptyLibraryGuide.ChooseFolder += (s, e) => ChooseLibraryFolder();
+				emptyLibraryGuide.HideGuide += (s, e) =>
+				{
+					emptyLibraryGuideHidden = true;
+					UpdateEmptyLibraryGuide();
+				};
+				base.Controls.Add(emptyLibraryGuide);
+			}
+			if (!emptyLibraryGuide.Visible)
+			{
+				base.Controls.SetChildIndex(emptyLibraryGuide, 0);
+				emptyLibraryGuide.Visible = true;
+			}
+			emptyLibraryGuide.UpdateTarget();
+		}
+
+		// The folder becomes a watched library folder (scanned now, new books added as they
+		// appear) and the folder downloads are saved to
+		public void ChooseLibraryFolder()
+		{
+			string current = DownloaderView.OptionsFromSettings().OutputFolder;
+			using (FolderBrowserDialog dlg = new FolderBrowserDialog
+			{
+				Description = "Choose the folder your comics are kept in. Downloads are saved there too.",
+				SelectedPath = Directory.Exists(current) ? current : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+				ShowNewFolderButton = true
+			})
+			{
+				if (dlg.ShowDialog(this) != DialogResult.OK)
+				{
+					return;
+				}
+				string path = dlg.SelectedPath;
+				Program.Settings.DownloaderOutputFolder = path;
+				if (!Program.Database.WatchFolders.Folders.Any((string f) => string.Equals(f.TrimEnd('\\'), path.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)))
+				{
+					Program.Database.WatchFolders.Add(new WatchFolder(path, watch: true));
+				}
+				Program.Scanner.ScanFileOrFolder(path, all: true, removeMissing: false);
+				emptyLibraryGuide?.Invalidate();
+			}
 		}
 
 		protected virtual void OnGuiVisibility()

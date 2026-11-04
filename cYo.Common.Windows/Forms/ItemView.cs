@@ -1977,7 +1977,58 @@ namespace cYo.Common.Windows.Forms
 
 		public void UpdateItem(IViewableItem item, bool sizeChanged)
 		{
+			if (!sizeChanged && base.InScrollOrResize)
+			{
+				lock (deferredItemUpdates)
+				{
+					if (deferredItems.Add(item))
+					{
+						deferredItemUpdates.Enqueue(item);
+					}
+				}
+				return;
+			}
 			InvalidateItem(item, sizeChanged);
+		}
+
+		// While the list scrolls, covers finish loading by the dozen. Repainting them all at once
+		// made single frames take 30-50 ms, so only a few are repainted per scroll step and the
+		// rest when scrolling stops.
+		private const int ItemUpdatesPerScrollStep = 3;
+
+		private readonly Queue<IViewableItem> deferredItemUpdates = new Queue<IViewableItem>();
+
+		private readonly HashSet<IViewableItem> deferredItems = new HashSet<IViewableItem>();
+
+		private void InvalidateDeferredItems(int count)
+		{
+			Rectangle visible = ClientRectangle;
+			while (count > 0)
+			{
+				IViewableItem item;
+				lock (deferredItemUpdates)
+				{
+					if (deferredItemUpdates.Count == 0)
+					{
+						return;
+					}
+					item = deferredItemUpdates.Dequeue();
+					deferredItems.Remove(item);
+				}
+				// Items scrolled out of view don't use up the budget
+				Rectangle bounds = GetItemBounds(item);
+				if (!bounds.IsEmpty && Translate(bounds, fromClient: false).IntersectsWith(visible))
+				{
+					InvalidateItem(item, withSize: false);
+					count--;
+				}
+			}
+		}
+
+		protected override void OnScrollOrResizeEnded()
+		{
+			base.OnScrollOrResizeEnded();
+			InvalidateDeferredItems(int.MaxValue);
 		}
 
 		public void UpdateItems()
@@ -2281,6 +2332,7 @@ namespace cYo.Common.Windows.Forms
 		protected override void OnScroll()
 		{
 			base.OnScroll();
+			InvalidateDeferredItems(ItemUpdatesPerScrollStep);
 			Point position = Cursor.Position;
 			position = PointToClient(position);
 			UpdateHotItemState(Control.MouseButtons, position.X, position.Y);
