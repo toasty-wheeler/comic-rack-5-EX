@@ -171,6 +171,11 @@ namespace cYo.Projects.ComicRack.Engine.IO
 		{
 			get
 			{
+				// Known from the data already; reading Bitmap would decode the image (a thumbnail at full size)
+				if (!size.IsEmpty)
+				{
+					return size;
+				}
 				Bitmap bitmap = Bitmap;
 				if (bitmap != null)
 				{

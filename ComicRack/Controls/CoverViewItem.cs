@@ -516,7 +516,7 @@ namespace cYo.Projects.ComicRack.Viewer.Controls
 				using (IItemLock<ThumbnailImage> itemLock = GetThumbnail(drawInfo))
 				{
 					Image backImage = null;
-					Image image = itemLock?.Item.GetThumbnail(height);
+					Image image = GetThumbnailImage(itemLock, height);
 					IItemLock<ThumbnailImage> itemLock2 = null;
 					ThumbnailDrawingOptions thumbnailDrawingOptions = ThumbnailDrawingOptions.Default;
 					if (base.Selected)

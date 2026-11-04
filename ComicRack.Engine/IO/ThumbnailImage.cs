@@ -62,24 +62,68 @@ namespace cYo.Projects.ComicRack.Engine.IO
 			{
 				return null;
 			}
-			float num = 512f;
-			while (num * 0.75f >= (float)height)
-			{
-				num *= 0.75f;
-			}
-			int num2 = (int)num;
+			int num2 = GetDecodeHeight(height);
 			Bitmap bitmap = base.Bitmap;
 			if (num2 == currentHeight && bitmap != null)
 			{
 				return bitmap;
 			}
-			using (Bitmap bitmap2 = BitmapExtensions.BitmapFromBytes(base.Data))
+			SetDecodedThumbnail(DecodeThumbnail(num2), num2);
+			return base.Bitmap;
+		}
+
+		// The decoded sizes are steps of 3/4 down from MaxHeight
+		public static int GetDecodeHeight(int height)
+		{
+			float num = 512f;
+			while (num * 0.75f >= (float)height)
 			{
-				Size size = new Size(bitmap2.Width * num2 / bitmap2.Height, num2);
-				bitmap = bitmap2.Scale(size, EngineConfiguration.Default.ThumbnailResampling).ToOptimized();
+				num *= 0.75f;
 			}
-			lastRequestHeight = (currentHeight = num2);
-			return base.Bitmap = bitmap;
+			return (int)num;
+		}
+
+		public bool IsDecoded(int height)
+		{
+			if (base.IsImage)
+			{
+				return currentHeight == GetDecodeHeight(height);
+			}
+			return false;
+		}
+
+		// Whatever size is decoded now (the renderers scale it), without decoding anything
+		public Bitmap DecodedThumbnail
+		{
+			get
+			{
+				if (!base.IsImage)
+				{
+					return null;
+				}
+				return base.Bitmap;
+			}
+		}
+
+		// Doesn't touch the current bitmap, so it can run off the UI thread
+		public Bitmap DecodeThumbnail(int decodeHeight)
+		{
+			byte[] data = base.Data;
+			if (data == null)
+			{
+				return null;
+			}
+			using (Bitmap bitmap = BitmapExtensions.BitmapFromBytes(data))
+			{
+				Size size = new Size(bitmap.Width * decodeHeight / bitmap.Height, decodeHeight);
+				return bitmap.Scale(size, EngineConfiguration.Default.ThumbnailResampling).ToOptimized();
+			}
+		}
+
+		public void SetDecodedThumbnail(Bitmap bitmap, int decodeHeight)
+		{
+			lastRequestHeight = (currentHeight = decodeHeight);
+			base.Bitmap = bitmap;
 		}
 
 		protected override Bitmap OnCreateImage(byte[] data)

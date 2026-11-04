@@ -142,6 +142,69 @@ namespace cYo.Projects.ComicRack.Viewer.Controls
 			return GetThumbnail(memoryOnly: true);
 		}
 
+		// While the list scrolls, a cover that isn't decoded at this size is decoded on the thumbnail
+		// queue; until then the size already in memory is drawn scaled (or the placeholder if none)
+		public Image GetThumbnailImage(IItemLock<ThumbnailImage> itemLock, int height)
+		{
+			ThumbnailImage thumbnail = itemLock?.Item;
+			if (thumbnail == null)
+			{
+				return null;
+			}
+			ItemView view = base.View;
+			if (view == null || !view.InScrollOrResize || !view.IsHandleCreated || thumbnail.IsDecoded(height))
+			{
+				return thumbnail.GetThumbnail(height);
+			}
+			ThumbnailKey key = ThumbnailKey;
+			Program.ImagePool.AddThumbToQueue(key, view, delegate
+			{
+				DecodeInBackground(key, height);
+			});
+			return thumbnail.DecodedThumbnail;
+		}
+
+		private void DecodeInBackground(ThumbnailKey key, int height)
+		{
+			ItemView view = base.View;
+			if (disposed || view == null)
+			{
+				return;
+			}
+			using (IItemLock<ThumbnailImage> itemLock = Program.ImagePool.Thumbs.GetImage(key, memoryOnly: true))
+			{
+				ThumbnailImage thumbnail = itemLock?.Item;
+				if (thumbnail == null || thumbnail.IsDecoded(height))
+				{
+					return;
+				}
+				int decodeHeight = ThumbnailImage.GetDecodeHeight(height);
+				Bitmap bitmap = thumbnail.DecodeThumbnail(decodeHeight);
+				if (bitmap == null)
+				{
+					return;
+				}
+				// The bitmap the paint may be drawing is swapped on the UI thread
+				try
+				{
+					view.BeginInvoke((Action)delegate
+					{
+						if (thumbnail.IsDisposed || thumbnail.IsDecoded(height))
+						{
+							bitmap.Dispose();
+							return;
+						}
+						thumbnail.SetDecodedThumbnail(bitmap, decodeHeight);
+						Update();
+					});
+				}
+				catch (InvalidOperationException)
+				{
+					bitmap.Dispose();
+				}
+			}
+		}
+
 		private static void AddAnimation(ThumbnailViewItem item)
 		{
 			if (animationTimer == null)

@@ -48,6 +48,10 @@ namespace cYo.Common.Windows.Forms
 
 		private Point scrollDelta;
 
+		private const int ScrollEndDelay = 250;
+
+		private int lastScrollOrResize;
+
 		[DefaultValue(ExtendedBorderStyle.Flat)]
 		public ExtendedBorderStyle BorderStyle
 		{
@@ -244,10 +248,14 @@ namespace cYo.Common.Windows.Forms
 			scrollTimer.Interval = 20;
 			scrollTimer.Tick += ScrollTimerTick;
 			scrollTimer.Enabled = false;
-			scrollEndTimer.Interval = 250;
+			scrollEndTimer.Interval = 50;
 			scrollEndTimer.Enabled = false;
 			scrollEndTimer.Tick += delegate
 			{
+				if (Environment.TickCount - lastScrollOrResize < ScrollEndDelay)
+				{
+					return;
+				}
 				scrollEndTimer.Stop();
 				InScrollOrResize = false;
 				Invalidate();
@@ -383,13 +391,23 @@ namespace cYo.Common.Windows.Forms
 			}
 		}
 
+		// Restarting a WinForms timer destroys and recreates its window, so the timer keeps
+		// running while scrolling and only checks how long ago the last step was
+		private void MarkScrollOrResize()
+		{
+			InScrollOrResize = true;
+			lastScrollOrResize = Environment.TickCount;
+			if (!scrollEndTimer.Enabled)
+			{
+				scrollEndTimer.Start();
+			}
+		}
+
 		protected virtual void OnScroll()
 		{
 			if (ScrollResizeRefresh)
 			{
-				InScrollOrResize = true;
-				scrollEndTimer.Stop();
-				scrollEndTimer.Start();
+				MarkScrollOrResize();
 			}
 			this.Scroll?.Invoke(this, EventArgs.Empty);
 		}
@@ -398,9 +416,7 @@ namespace cYo.Common.Windows.Forms
 		{
 			if (ScrollResizeRefresh)
 			{
-				InScrollOrResize = true;
-				scrollEndTimer.Stop();
-				scrollEndTimer.Start();
+				MarkScrollOrResize();
 			}
 			OnResize(EventArgs.Empty);
 			this.ViewResized?.Invoke(this, EventArgs.Empty);

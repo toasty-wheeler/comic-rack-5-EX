@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -212,49 +213,75 @@ namespace cYo.Common.Drawing
 			}
 		}
 
+		// Shadow corners are drawn for every thumbnail, so the gradient bitmaps are kept per thread
+		// (a GDI+ bitmap can't be drawn from two threads at once)
+		[ThreadStatic]
+		private static Dictionary<(BlurShadowType, int, int, int), Bitmap> shadowBitmaps;
+
+		private static Bitmap GetShadowBitmap(BlurShadowType bst, Color color, int depth, float opacity)
+		{
+			var key = (bst, color.ToArgb(), depth, (int)(opacity * 1000f));
+			if (shadowBitmaps == null)
+			{
+				shadowBitmaps = new Dictionary<(BlurShadowType, int, int, int), Bitmap>();
+			}
+			if (!shadowBitmaps.TryGetValue(key, out Bitmap bitmap))
+			{
+				if (shadowBitmaps.Count > 32)
+				{
+					foreach (Bitmap b in shadowBitmaps.Values)
+					{
+						b.Dispose();
+					}
+					shadowBitmaps.Clear();
+				}
+				bitmap = CreateShadowBitmap(bst, color, depth, opacity);
+				shadowBitmaps[key] = bitmap;
+			}
+			return bitmap;
+		}
+
 		public static void DrawShadow(this Graphics graphics, Rectangle rectangle, int depth, Color color, float opacity, BlurShadowType bst, BlurShadowParts parts)
 		{
-			using (Bitmap image = CreateShadowBitmap(bst, color, depth, opacity))
+			Bitmap image = GetShadowBitmap(bst, color, depth, opacity);
+			if ((parts & BlurShadowParts.Center) != 0)
 			{
-				if ((parts & BlurShadowParts.Center) != 0)
+				using (SolidBrush brush = new SolidBrush(Color.FromArgb((int)(255f * opacity), color)))
 				{
-					using (SolidBrush brush = new SolidBrush(Color.FromArgb((int)(255f * opacity), color)))
-					{
-						graphics.FillRectangle(brush, rectangle.Left + depth, rectangle.Top + depth, rectangle.Width - 2 * depth, rectangle.Height - 2 * depth);
-					}
+					graphics.FillRectangle(brush, rectangle.Left + depth, rectangle.Top + depth, rectangle.Width - 2 * depth, rectangle.Height - 2 * depth);
 				}
-				if ((parts & BlurShadowParts.TopLeft) != 0)
-				{
-					graphics.DrawImage(image, new Rectangle(rectangle.Left, rectangle.Top, depth, depth), 0, 0, depth, depth, GraphicsUnit.Pixel);
-				}
-				if ((parts & BlurShadowParts.TopCenter) != 0)
-				{
-					graphics.DrawImage(image, new Rectangle(rectangle.Left + depth, rectangle.Top, rectangle.Width - 2 * depth, depth), depth, 0, 1, depth, GraphicsUnit.Pixel);
-				}
-				if ((parts & BlurShadowParts.TopRight) != 0)
-				{
-					graphics.DrawImage(image, new Rectangle(rectangle.Right - depth, rectangle.Top, depth, depth), depth, 0, depth, depth, GraphicsUnit.Pixel);
-				}
-				if ((parts & BlurShadowParts.CenterRight) != 0)
-				{
-					graphics.DrawImage(image, new Rectangle(rectangle.Right - depth, rectangle.Top + depth, depth, rectangle.Height - 2 * depth), depth, depth, depth, 1, GraphicsUnit.Pixel);
-				}
-				if ((parts & BlurShadowParts.BottomRight) != 0)
-				{
-					graphics.DrawImage(image, new Rectangle(rectangle.Right - depth, rectangle.Bottom - depth, depth, depth), depth, depth, depth, depth, GraphicsUnit.Pixel);
-				}
-				if ((parts & BlurShadowParts.BottomCenter) != 0)
-				{
-					graphics.DrawImage(image, new Rectangle(rectangle.Left + depth, rectangle.Bottom - depth, rectangle.Width - 2 * depth, depth), depth, depth, 1, depth, GraphicsUnit.Pixel);
-				}
-				if ((parts & BlurShadowParts.BottomLeft) != 0)
-				{
-					graphics.DrawImage(image, new Rectangle(rectangle.Left, rectangle.Bottom - depth, depth, depth), 0, depth, depth, depth, GraphicsUnit.Pixel);
-				}
-				if ((parts & BlurShadowParts.CenterLeft) != 0)
-				{
-					graphics.DrawImage(image, new Rectangle(rectangle.Left, rectangle.Top + depth, depth, rectangle.Height - 2 * depth), 0, depth, depth, 1, GraphicsUnit.Pixel);
-				}
+			}
+			if ((parts & BlurShadowParts.TopLeft) != 0)
+			{
+				graphics.DrawImage(image, new Rectangle(rectangle.Left, rectangle.Top, depth, depth), 0, 0, depth, depth, GraphicsUnit.Pixel);
+			}
+			if ((parts & BlurShadowParts.TopCenter) != 0)
+			{
+				graphics.DrawImage(image, new Rectangle(rectangle.Left + depth, rectangle.Top, rectangle.Width - 2 * depth, depth), depth, 0, 1, depth, GraphicsUnit.Pixel);
+			}
+			if ((parts & BlurShadowParts.TopRight) != 0)
+			{
+				graphics.DrawImage(image, new Rectangle(rectangle.Right - depth, rectangle.Top, depth, depth), depth, 0, depth, depth, GraphicsUnit.Pixel);
+			}
+			if ((parts & BlurShadowParts.CenterRight) != 0)
+			{
+				graphics.DrawImage(image, new Rectangle(rectangle.Right - depth, rectangle.Top + depth, depth, rectangle.Height - 2 * depth), depth, depth, depth, 1, GraphicsUnit.Pixel);
+			}
+			if ((parts & BlurShadowParts.BottomRight) != 0)
+			{
+				graphics.DrawImage(image, new Rectangle(rectangle.Right - depth, rectangle.Bottom - depth, depth, depth), depth, depth, depth, depth, GraphicsUnit.Pixel);
+			}
+			if ((parts & BlurShadowParts.BottomCenter) != 0)
+			{
+				graphics.DrawImage(image, new Rectangle(rectangle.Left + depth, rectangle.Bottom - depth, rectangle.Width - 2 * depth, depth), depth, depth, 1, depth, GraphicsUnit.Pixel);
+			}
+			if ((parts & BlurShadowParts.BottomLeft) != 0)
+			{
+				graphics.DrawImage(image, new Rectangle(rectangle.Left, rectangle.Bottom - depth, depth, depth), 0, depth, depth, depth, GraphicsUnit.Pixel);
+			}
+			if ((parts & BlurShadowParts.CenterLeft) != 0)
+			{
+				graphics.DrawImage(image, new Rectangle(rectangle.Left, rectangle.Top + depth, depth, rectangle.Height - 2 * depth), 0, depth, depth, 1, GraphicsUnit.Pixel);
 			}
 		}
 
