@@ -1703,6 +1703,7 @@ namespace cYo.Common.Windows.Forms
 			SetStyle(ControlStyles.OptimizedDoubleBuffer, value: true);
 			SetStyle(ControlStyles.UserPaint, value: true);
 			SetStyle(ControlStyles.AllPaintingInWmPaint, value: true);
+			RetainedPaint = true;
 			items.Changed += ItemsChanged;
 			columns.Changed += HeadersChanged;
 			itemStates.StateChanged += ItemStatesStateChanged;
@@ -3574,60 +3575,8 @@ namespace cYo.Common.Windows.Forms
 			return ForeColor;
 		}
 
-		[System.Runtime.InteropServices.DllImport("user32.dll")]
-		private static extern int GetUpdateRgn(IntPtr hWnd, IntPtr hRgn, bool erase);
-
-		[System.Runtime.InteropServices.DllImport("gdi32.dll")]
-		private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
-
-		[System.Runtime.InteropServices.DllImport("gdi32.dll")]
-		private static extern bool DeleteObject(IntPtr handle);
-
-		private const int WM_PAINT = 0x000F;
-
-		private const int COMPLEXREGION = 3;
-
-		// Areas invalidated apart from each other (the strip uncovered by scrolling and a cover that
-		// finished loading) are painted with the clip they span, which would draw every item in
-		// between; clipping to the update region itself skips those
-		private Region paintRegion;
-
-		protected override void WndProc(ref Message m)
-		{
-			if (m.Msg != WM_PAINT || m.WParam != IntPtr.Zero)
-			{
-				base.WndProc(ref m);
-				return;
-			}
-			IntPtr rgn = CreateRectRgn(0, 0, 0, 0);
-			try
-			{
-				if (GetUpdateRgn(base.Handle, rgn, erase: false) == COMPLEXREGION)
-				{
-					paintRegion = Region.FromHrgn(rgn);
-				}
-			}
-			finally
-			{
-				DeleteObject(rgn);
-			}
-			try
-			{
-				base.WndProc(ref m);
-			}
-			finally
-			{
-				paintRegion?.Dispose();
-				paintRegion = null;
-			}
-		}
-
 		protected override void OnPaintBackground(PaintEventArgs e)
 		{
-			if (paintRegion != null)
-			{
-				e.Graphics.IntersectClip(paintRegion);
-			}
 			try
 			{
 				UpdatePositions(e.Graphics);
@@ -3645,10 +3594,6 @@ namespace cYo.Common.Windows.Forms
 			Graphics graphics = e.Graphics;
 			using (graphics.SaveState())
 			{
-				if (paintRegion != null)
-				{
-					graphics.IntersectClip(paintRegion);
-				}
 				try
 				{
 					if (UpdatePositions(graphics))

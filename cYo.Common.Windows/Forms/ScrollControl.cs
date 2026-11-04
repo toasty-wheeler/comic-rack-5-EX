@@ -3,6 +3,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using cYo.Common.Drawing;
@@ -306,6 +307,9 @@ namespace cYo.Common.Windows.Forms
 				thumbStick.Dispose();
 				scrollTimer.Dispose();
 				scrollEndTimer.Dispose();
+				surface?.Dispose();
+				surfaceContext?.Dispose();
+				surfaceDirty.Dispose();
 			}
 			base.Dispose(disposing);
 		}
@@ -386,11 +390,21 @@ namespace cYo.Common.Windows.Forms
 			{
 				return false;
 			}
-			RECT rc = new RECT { Left = view.Left, Top = view.Top, Right = view.Right, Bottom = view.Bottom };
-			// The pending update region is moved along with the pixels
-			if (ScrollWindowEx(base.Handle, 0, delta.Y, ref rc, ref rc, IntPtr.Zero, IntPtr.Zero, SW_INVALIDATE) == 0)
+			if (RetainedPaint)
 			{
-				return false;
+				if (!ScrollSurface(view, delta.Y))
+				{
+					return false;
+				}
+			}
+			else
+			{
+				RECT rc = new RECT { Left = view.Left, Top = view.Top, Right = view.Right, Bottom = view.Bottom };
+				// The pending update region is moved along with the pixels
+				if (ScrollWindowEx(base.Handle, 0, delta.Y, ref rc, ref rc, IntPtr.Zero, IntPtr.Zero, SW_INVALIDATE) == 0)
+				{
+					return false;
+				}
 			}
 			if (fixedMargin != Padding.Empty)
 			{
@@ -410,6 +424,207 @@ namespace cYo.Common.Windows.Forms
 			}
 			return true;
 		}
+
+		#region Retained surface
+
+		// The control is painted into its own off-screen surface, which is copied to the window.
+		// Scrolling moves the surface's pixels and paints the uncovered strip into it: nothing is
+		// ever read back from the screen. (ScrollWindowEx reads the window's pixels, and once an
+		// OpenGL view had been shown in the window those read back black, so the list flashed or
+		// stayed black.) What needs painting into the surface is tracked through OnInvalidated;
+		// a WM_PAINT for anything else (the window uncovered) only copies the surface again.
+		protected bool RetainedPaint { get; set; }
+
+		private BufferedGraphicsContext surfaceContext;
+
+		private BufferedGraphics surface;
+
+		private Size surfaceSize;
+
+		private readonly object surfaceLock = new object();
+
+		private Region surfaceDirty = new Region(Rectangle.Empty);
+
+		private bool screenOnlyInvalidate;
+
+		[StructLayout(LayoutKind.Sequential)]
+		private struct PAINTSTRUCT
+		{
+			public IntPtr hdc;
+
+			public bool fErase;
+
+			public RECT rcPaint;
+
+			public bool fRestore;
+
+			public bool fIncUpdate;
+
+			[MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)]
+			public byte[] rgbReserved;
+		}
+
+		[DllImport("user32.dll")]
+		private static extern IntPtr BeginPaint(IntPtr hWnd, ref PAINTSTRUCT paint);
+
+		[DllImport("user32.dll")]
+		private static extern bool EndPaint(IntPtr hWnd, ref PAINTSTRUCT paint);
+
+		[DllImport("user32.dll")]
+		private static extern bool ScrollDC(IntPtr hDC, int dx, int dy, ref RECT scroll, ref RECT clip, IntPtr updateRegion, IntPtr updateRect);
+
+		private const int WM_PAINT = 0x000F;
+
+		private void MarkSurfaceDirty(Rectangle rc)
+		{
+			lock (surfaceLock)
+			{
+				surfaceDirty.Union(rc);
+			}
+		}
+
+		protected override void OnInvalidated(InvalidateEventArgs e)
+		{
+			// (invalidations from other threads always need painting)
+			if (RetainedPaint && (!screenOnlyInvalidate || base.InvokeRequired))
+			{
+				MarkSurfaceDirty(e.InvalidRect);
+			}
+			base.OnInvalidated(e);
+		}
+
+		protected override void OnVisibleChanged(EventArgs e)
+		{
+			// Whatever changed while hidden may not have been invalidated
+			if (RetainedPaint)
+			{
+				MarkSurfaceDirty(ClientRectangle);
+			}
+			base.OnVisibleChanged(e);
+		}
+
+		protected override void WndProc(ref Message m)
+		{
+			if (m.Msg == WM_PAINT && RetainedPaint && m.WParam == IntPtr.Zero)
+			{
+				PaintFromSurface();
+				return;
+			}
+			base.WndProc(ref m);
+		}
+
+		private void PaintFromSurface()
+		{
+			PAINTSTRUCT ps = new PAINTSTRUCT();
+			IntPtr hdc = BeginPaint(base.Handle, ref ps);
+			try
+			{
+				Rectangle client = ClientRectangle;
+				if (client.Width <= 0 || client.Height <= 0)
+				{
+					return;
+				}
+				if (surface == null || surfaceSize != client.Size)
+				{
+					surface?.Dispose();
+					if (surfaceContext == null)
+					{
+						surfaceContext = new BufferedGraphicsContext();
+					}
+					surfaceContext.MaximumBuffer = new Size(Math.Max(client.Width, surfaceContext.MaximumBuffer.Width), Math.Max(client.Height, surfaceContext.MaximumBuffer.Height));
+					surface = surfaceContext.Allocate(hdc, client);
+					surfaceSize = client.Size;
+					MarkSurfaceDirty(client);
+				}
+				Region dirty;
+				lock (surfaceLock)
+				{
+					dirty = surfaceDirty;
+					surfaceDirty = new Region(Rectangle.Empty);
+				}
+				using (dirty)
+				{
+					Graphics g = surface.Graphics;
+					dirty.Intersect(client);
+					if (!dirty.IsEmpty(g))
+					{
+						Rectangle bounds = Rectangle.Ceiling(dirty.GetBounds(g));
+						GraphicsState state = g.Save();
+						try
+						{
+							using (PaintEventArgs pe = new PaintEventArgs(g, bounds))
+							{
+								g.Clip = dirty;
+								OnPaintBackground(pe);
+								g.Restore(state);
+								state = g.Save();
+								g.Clip = dirty;
+								OnPaint(pe);
+							}
+						}
+						catch (Exception)
+						{
+							MarkSurfaceDirty(client);
+						}
+						finally
+						{
+							g.Restore(state);
+						}
+					}
+				}
+				surface.Render(hdc);
+			}
+			finally
+			{
+				EndPaint(base.Handle, ref ps);
+			}
+		}
+
+		// Moves the surface's pixels inside view by dy; areas waiting to be painted move along
+		private bool ScrollSurface(Rectangle view, int dy)
+		{
+			if (surface == null || surfaceSize != ClientSize)
+			{
+				return false;
+			}
+			Graphics g = surface.Graphics;
+			IntPtr sdc = g.GetHdc();
+			try
+			{
+				RECT rc = new RECT { Left = view.Left, Top = view.Top, Right = view.Right, Bottom = view.Bottom };
+				ScrollDC(sdc, 0, dy, ref rc, ref rc, IntPtr.Zero, IntPtr.Zero);
+			}
+			finally
+			{
+				g.ReleaseHdc(sdc);
+			}
+			Rectangle uncovered = dy < 0 ? Rectangle.FromLTRB(view.Left, view.Bottom + dy, view.Right, view.Bottom) : Rectangle.FromLTRB(view.Left, view.Top, view.Right, view.Top + dy);
+			lock (surfaceLock)
+			{
+				using (Region inView = surfaceDirty.Clone())
+				{
+					inView.Intersect(view);
+					surfaceDirty.Exclude(view);
+					inView.Translate(0, dy);
+					inView.Intersect(view);
+					surfaceDirty.Union(inView);
+				}
+				surfaceDirty.Union(uncovered);
+			}
+			// The window shows the moved surface on the next paint
+			screenOnlyInvalidate = true;
+			try
+			{
+				Invalidate(view);
+			}
+			finally
+			{
+				screenOnlyInvalidate = false;
+			}
+			return true;
+		}
+
+		#endregion
 
 		private void ScrollbarVisibilityChanged(object sender, EventArgs e)
 		{
