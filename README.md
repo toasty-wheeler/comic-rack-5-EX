@@ -1,3 +1,48 @@
+# comic-rack-5-EX
+
+A fork of [ComicRack Community Edition](https://github.com/maforget/ComicRackCE) by maforget. Everything below the line is the upstream README. The download links there are for upstream builds and do not include the changes listed here.
+
+## What this fork changes
+
+### Downloads tab
+- A **Downloads** tab (next to Folders) downloads galleries and series from a pasted link, using the open-source [HDoujin Downloader site modules](https://github.com/HDoujinDownloader/HDoujinDownloader-modules) (MIT). The modules run in an embedded Lua engine; the HDoujin Downloader app itself is not used.
+- You can pick chapters, choose the output format (CBZ, CB7, CBT, PDF or folder, with ComicInfo.xml metadata) and update modules. Downloads can be added to the library automatically, and copied links can be picked up from the clipboard.
+- About 19 modules depend on a closed-source HDoujin function and do not work.
+- A **browser extension** (`BrowserExtension/`, Chromium MV3) sends the comic on the current page to ComicRack. The browser fetches the page and images when you click; ComicRack reads the metadata and adds the book to the library. The extension talks only to a local bridge on `127.0.0.1` and never passes cookies or sessions to ComicRack.
+
+### Library
+- Library folders are watched by default. New, moved or renamed books are imported once they are fully written.
+- When the library is empty, an arrow points to the Downloads tab and a short guide explains it, with a button to choose your library folder. That folder is watched and downloads are saved there.
+- Scrolling stays smooth in very large libraries (tested with 30,000 books):
+  - wheel scrolling runs at the display's refresh rate;
+  - only the newly revealed strip is repainted;
+  - covers that are still loading no longer cause hitches.
+- Covers grow slightly when hovered and stay larger while selected (thumbnail view).
+- Middle-click opens a book in a new tab.
+
+### Reader
+- Touchpad swipe and pinch work like in a browser, with smooth, eased wheel scrolling.
+- Mouse back/forward buttons turn pages.
+- CDisplay-style hotkeys:
+  - arrow keys pan, then turn the page;
+  - Home/End go to the first/last page;
+  - Backspace goes back;
+  - Shift+wheel, and left button+wheel, turn pages;
+  - Ctrl +/- zoom.
+- The open book's tab is highlighted. The tab bar's scroll arrows work, and the horizontal mouse wheel scrolls the tabs.
+
+### Interface and startup
+- New **Auto** theme (the default) follows the Windows light/dark setting. Includes dark-mode fixes.
+- Faster startup: about 2.9 s down to 1.7 s, from a multicore JIT profile, a non-blocking splash screen and tabs created only when first opened.
+
+### Fixes
+- Crash when closing ComicRack (OpenGL resources were freed from the finalizer thread).
+- The library list flashed or stayed black after the reader had been open.
+- Crash when closing the book info dialog.
+- `dotnet build ComicRack.sln` works from the command line.
+
+---
+
 <div align="center">
 
 # ComicRack Community Edition
